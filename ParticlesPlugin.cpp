@@ -51,15 +51,28 @@ public:
     void releaseResources() override {}
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override {return (layouts.getMainOutputChannels() == 2);}
 
-    void processBlock (AudioBuffer<float>& audio, MidiBuffer& midi) override {
+    void processBlock (AudioBuffer<float>& audio, MidiBuffer& midiInput) override {
+        MidiBuffer midiOutput;
+
+        auto nextMidiEvent = midiInput.findNextSamplePosition(0);
+
         for (auto i = 0; i < audio.getNumSamples()-1; i++) {
+            while (nextMidiEvent != midiInput.end() && (*nextMidiEvent).samplePosition <= i) {
+                const auto &event = (*nextMidiEvent);
+                if (event.getMessage().isNoteOn()) {
+                    sim.addNote(event.getMessage().getNoteNumber(), event.getMessage().getFloatVelocity());
+                } else if (event.getMessage().isNoteOff()) {
+                    sim.removeNote(event.getMessage().getNoteNumber());
+                }
+                nextMidiEvent++;
+            }
             if (stepCounter++ >= samplesPerStep) {
-                sim.step([&] (int midiNote, float velocity) { midi.addEvent(MidiMessage::noteOn(1,midiNote,velocity), i); midi.addEvent(MidiMessage::noteOff(1,midiNote), i+1); });
+                sim.step([&] (int midiNote, float velocity) { midiOutput.addEvent(MidiMessage::noteOn(1,midiNote,velocity), i); midiOutput.addEvent(MidiMessage::noteOff(1,midiNote), i+1); });
                 stepCounter = 0;
             }
         }
         audio.clear();
-        poly.renderNextBlock(audio,midi, 0,audio.getNumSamples());
+        poly.renderNextBlock(audio,midiOutput, 0,audio.getNumSamples());
     }
 
     AudioProcessorEditor* createEditor() override;
