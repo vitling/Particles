@@ -41,6 +41,12 @@ double abs(const Vec &v) {
     return sqrt(v.x * v.x + v.y * v.y);
 }
 
+Vec normalise (const Vec &v) {
+    auto mag = abs(v);
+    return {mag == 0.0 ? 0.0 : v.x / mag, mag == 0.0 ? 0.0 : v.y / mag};
+}
+
+
 double dist(const Vec& a, const Vec& b) {
     return abs(a - b);
 }

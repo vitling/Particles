@@ -6,7 +6,6 @@
 #include "Simulation.h"
 #include "ParticleSynth.h"
 
-
 class ParticlesPluginEditor;
 
 inline auto param(const String& pid, float minValue, float maxValue, float def) {
@@ -20,28 +19,35 @@ private:
     ParticleSynth poly;
     ParticleSimulation sim;
     int stepCounter = 0;
-    int samplesPerStep = 256;
+    int samplesPerStep = 64;
+    float noteLength = 0.1f;
+    std::map<int, int> lastChannelForNote;
+
+    MidiBuffer overflowBuffer;
 
     AudioProcessorValueTreeState state {
         *this,
         nullptr,
         "ParticleSim", {
-            param("particles", 1.0f, MAX_PARTICLES, 30.0f)
+            param("particle_multiplier", 1.0f, 20.0f, 5.0f),
+            param("gravity", 0.0f, 2.0f, 0.0f)
         }
     };
 
 public:
     ParticlesAudioProcessor():
-        AudioProcessor(BusesProperties().withOutput ("Output", AudioChannelSet::stereo(), true)),
-        sim(30) {
-        state.addParameterListener("particles", this);
+        AudioProcessor(BusesProperties().withOutput ("Output", AudioChannelSet::stereo(), true)) {
+        state.addParameterListener("particle_multiplier", this);
+        state.addParameterListener("gravity", this);
     }
 
     ~ParticlesAudioProcessor() override = default;
 
     void parameterChanged (const String& parameterID, float newValue) override {
-        if (parameterID == "particles") {
-            sim.setParticles(static_cast<int>(newValue));
+        if (parameterID == "particle_multiplier") {
+            sim.setParticleMultiplier(static_cast<int>(newValue));
+        } else if (parameterID == "gravity") {
+            sim.setGravity(newValue);
         }
     }
 
@@ -52,11 +58,17 @@ public:
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override {return (layouts.getMainOutputChannels() == 2);}
 
     void processBlock (AudioBuffer<float>& audio, MidiBuffer& midiInput) override {
+        int maximumMidiFutureInSamples = 40000;
+
         MidiBuffer midiOutput;
 
-        auto nextMidiEvent = midiInput.findNextSamplePosition(0);
+        midiOutput.addEvents(overflowBuffer, 0, maximumMidiFutureInSamples, 0);
+        overflowBuffer.clear();
 
-        for (auto i = 0; i < audio.getNumSamples()-1; i++) {
+        auto nextMidiEvent = midiInput.findNextSamplePosition(0);
+        int noteLengthSamples = noteLength * getSampleRate();
+
+        for (auto i = 0; i < audio.getNumSamples(); i++) {
             while (nextMidiEvent != midiInput.end() && (*nextMidiEvent).samplePosition <= i) {
                 const auto &event = (*nextMidiEvent);
                 if (event.getMessage().isNoteOn()) {
@@ -67,12 +79,27 @@ public:
                 nextMidiEvent++;
             }
             if (stepCounter++ >= samplesPerStep) {
-                sim.step([&] (int midiNote, float velocity) { midiOutput.addEvent(MidiMessage::noteOn(1,midiNote,velocity), i); midiOutput.addEvent(MidiMessage::noteOff(1,midiNote), i+1); });
+                sim.step([&] (int midiNote, float velocity, float pan) {
+
+                    lastChannelForNote[midiNote] = (lastChannelForNote[midiNote] + 1) % 16;
+
+                    int ch = lastChannelForNote[midiNote] + 1;
+
+                    midiOutput.addEvent(MidiMessage::controllerEvent(ch,10, static_cast<int>((pan + 1.0f)*64.0f)), i);
+                    midiOutput.addEvent(MidiMessage::noteOn(ch, midiNote,velocity), i);
+                    midiOutput.addEvent(MidiMessage::noteOff(ch, midiNote), i + noteLengthSamples);
+                }, samplesPerStep/256.0f);
                 stepCounter = 0;
             }
         }
         audio.clear();
-        poly.renderNextBlock(audio,midiOutput, 0,audio.getNumSamples());
+
+        MidiBuffer blockOut;
+        blockOut.addEvents(midiOutput, 0, audio.getNumSamples(), 0);
+        overflowBuffer.addEvents(midiOutput, audio.getNumSamples(), maximumMidiFutureInSamples, -audio.getNumSamples());
+
+        poly.renderNextBlock(audio, blockOut, 0,audio.getNumSamples());
+
     }
 
     AudioProcessorEditor* createEditor() override;
@@ -121,6 +148,7 @@ class ParamControl {
 public:
     Slider slider;
     SliderParameterAttachment attachment;
+    Label label;
     explicit ParamControl(RangedAudioParameter& param): attachment(param, slider) {}
 };
 
@@ -133,17 +161,32 @@ public:
     explicit ParticlesPluginEditor(ParticlesAudioProcessor &proc):
     AudioProcessorEditor(proc),
     vis(proc.simulation()) {
-        auto particleSlider = std::make_unique<ParamControl>(*proc.state.getParameter("particles"));
-        addAndMakeVisible(particleSlider->slider);
-        particleSlider->slider.setBounds(0,200,200,600);
-        particleSlider->slider.setSliderStyle(Slider::LinearVertical);
-        particleSlider->slider.setTextBoxStyle(Slider::TextBoxBelow, true, 50, 20);
-        controls.push_back(std::move(particleSlider));
+        generateUI(proc.state, {"particle_multiplier", "gravity"});
 
         setSize(1000,1000);
         vis.setBounds(200,200,600,600);
         addAndMakeVisible(vis);
 
+    }
+
+    void generateUI(AudioProcessorValueTreeState& state, const std::initializer_list<String> parameters) {
+        auto x = 0;
+        auto cw = 100;
+        auto ch = 200;
+        for (auto &param: parameters) {
+            auto control = std::make_unique<ParamControl>(*state.getParameter(param));
+            addAndMakeVisible(control->slider);
+            control->slider.setBounds(x,0,cw,ch-20);
+            control->slider.setSliderStyle(Slider::LinearVertical);
+            control->slider.setTextBoxStyle(Slider::TextBoxBelow, true, 50,20);
+            control->label.setText(param,NotificationType::dontSendNotification);
+            control->label.setJustificationType(Justification::centred);
+            control->label.setBounds(x, ch-20,cw,20);
+            addAndMakeVisible(control->slider);
+            addAndMakeVisible(control->label);
+            controls.push_back(std::move(control));
+            x+=cw;
+        }
     }
 
     void paint(Graphics &g) override {

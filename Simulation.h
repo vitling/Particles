@@ -7,7 +7,7 @@
 #include <JuceHeader.h>
 #include "Vec.h"
 
-constexpr int MAX_PARTICLES = 400;
+constexpr int MAX_PARTICLES = 200;
 
 struct Particle {
     Vec pos = {0,0};
@@ -15,7 +15,7 @@ struct Particle {
     double mass = 1.0;
     double hue = 0.0;
     double radius = 1.0;
-    int lastCollided = 1000;
+    float lastCollided = 1000;
     int note = 32;
     bool enabled = false;
 };
@@ -29,9 +29,9 @@ private:
     Particle particles[MAX_PARTICLES];
     Random rnd;
 
-    std::list<Particle*> activeParticles;
-    std::list<Particle*> inactiveParticles;
+    float gravity = 0.0f;
 
+    int particleGenerationMultiplier = 1;
 
     const int scale[5] = {0,2,3,7,10};
 
@@ -39,45 +39,44 @@ private:
         return scale[rnd.nextInt(5)] + rnd.nextInt(4) * 12;
     }
 
-    void createParticle(int noteNumber, float velocity) {
-        if (!inactiveParticles.empty()) {
-            Particle* next = inactiveParticles.back();
-            inactiveParticles.pop_back();
-            activeParticles.push_back(next);
+    int findFreeParticle() {
+        for (auto i = 0; i < MAX_PARTICLES; i++) {
+            if (particles[i].enabled == false) return i;
+        }
+        return -1;
+    }
 
-            Particle &p = *next;
-            p.pos = {rnd.nextFloat() * 1000, rnd.nextFloat() * 1000};
-            p.vel = {4 * velocity * (rnd.nextFloat() - 0.5), 4 * velocity * (rnd.nextFloat() - 0.5)};
+    void createParticle(int noteNumber, float velocity) {
+        int freeParticle = findFreeParticle();
+        if (freeParticle != -1) {
+            Particle &p = particles[freeParticle];
+            p.pos = {rnd.nextFloat() * 200, rnd.nextFloat() * 200};
+            p.vel = 4 * velocity * normalise({rnd.nextFloat(), rnd.nextFloat()});
             p.note = noteNumber;
             p.mass = 100000.0 / (110.0 * (pow(2.0, (p.note / 12.0))));
             p.hue = 30 + 360.0 * (p.note % 12) / 12.0;
-            p.radius = sqrt(p.mass);
+            p.radius = sqrt(p.mass) * 4;
             p.lastCollided = 1000;
             p.enabled = true;
         }
     }
 public:
-    explicit ParticleSimulation(int initialParticles) {
-        for (int i = 0 ; i < MAX_PARTICLES; i++) {
-            inactiveParticles.push_back(&particles[i]);
-        }
-    }
-
-    static constexpr int PARTICLE_MULTIPLIER = 10;
+    explicit ParticleSimulation() {}
 
     void addNote(int noteNumber, float velocity) {
-        for (auto i = 0; i < PARTICLE_MULTIPLIER; i++) {
+        for (auto i = 0; i < particleGenerationMultiplier; i++) {
             createParticle(noteNumber, velocity);
         }
     }
 
+    void setParticleMultiplier(int newValue) {
+        particleGenerationMultiplier = newValue;
+    }
+
     void removeNote(int noteNumber) {
-        for (auto iterator = activeParticles.begin(); iterator != activeParticles.end(); iterator++) {
-            Particle* particle = (*iterator);
-            if (particle->note == noteNumber) {
-                particles->enabled = false;
-                inactiveParticles.push_back(particle);
-                activeParticles.erase(iterator);
+        for (auto i = 0; i < MAX_PARTICLES; i++) {
+            if (particles[i].enabled && particles[i].note == noteNumber) {
+                particles[i].enabled = false;
             }
         }
     }
@@ -86,31 +85,36 @@ public:
         return value < 0.0f ? 0.0f : value > 1.0f ? 1.0f : value;
     }
 
-    void setParticles(int p) {
-        //targetParticles = p;
+    void setGravity(float newGravity) {
+        gravity = newGravity;
     }
 
-    void step(const std::function<void (int, float)> &collisionCallback) {
+
+    void step(const std::function<void (int, float, float)> &collisionCallback, float fraction = 1.0f) {
 //        if (targetParticles > nParticles) {
 //            //createParticle();
 //        }
 //        if (targetParticles < nParticles) {
 //            //removeParticle();
 //        }
-        for (auto particle : activeParticles) {
-            Particle &p = *particle;
-            p.pos += p.vel;
-            if (p.pos.x < 0) p.vel.x = abs(p.vel.x);
-            if (p.pos.y < 0) p.vel.y = abs(p.vel.y);
-            if (p.pos.x > w) p.vel.x = -abs(p.vel.x);
-            if (p.pos.y > h) p.vel.y = -abs(p.vel.y);
-            p.lastCollided++;
+        for (auto i = 0 ; i < MAX_PARTICLES; i++) {
+            Particle &p = particles[i];
+            if (p.enabled) {
+                p.pos += fraction * p.vel;
+                p.vel.y = p.vel.y + 0.05 * gravity;
+                if (p.pos.x < 0) p.vel.x = abs(p.vel.x);
+                if (p.pos.y < 0) p.vel.y = abs(p.vel.y);
+                if (p.pos.x > w) p.vel.x = -abs(p.vel.x);
+                if (p.pos.y > h) p.vel.y = -abs(p.vel.y);
+                p.lastCollided += fraction;
+            }
         }
-        for (auto pa : activeParticles) {
-            for (auto pb : activeParticles) {
-                if (pa == pb) continue;
-                Particle &a = *pa;
-                Particle &b = *pb;
+        for (auto i = 0; i < MAX_PARTICLES; i++) {
+            if (!particles[i].enabled) continue;
+            for (auto j = 0; j < MAX_PARTICLES; j++) {
+                if (i == j || !particles[j].enabled) continue;
+                Particle &a = particles[i];
+                Particle &b = particles[j];
                 // check if particles are intersection
                 if (dist(a.pos,b.pos) < (a.radius + b.radius)) {
                     // check to make sure they're not already moving away from each other (helps with glitches)
@@ -126,8 +130,8 @@ public:
                         a.vel = aNewVel;
                         b.vel = bNewVel;
 
-                        collisionCallback(a.note + 33, clamp(abs(a.vel)/10));
-                        collisionCallback(b.note + 33, clamp(abs(b.vel)/10));
+                        collisionCallback(a.note + 33, clamp(abs(a.vel)/10), a.pos.x/500.0f - 1.0f);
+                        collisionCallback(b.note + 33, clamp(abs(b.vel)/10), b.pos.x/500.0f - 1.0f);
 
                         a.lastCollided = 0;
                         b.lastCollided = 0;
@@ -152,8 +156,7 @@ public:
 
     void paint(Graphics &g) override {
         g.fillAll(Colours::white.withAlpha(0.5f));
-        for (auto part : sim.activeParticles) {
-            const Particle &p = *part;
+        for (const auto & p : sim.particles) {
             if (p.enabled) {
                 if (p.lastCollided < 20) {
                     g.setColour(Colour::fromHSL(p.hue/360.0f, 1.0f, (20.0f - p.lastCollided)/20.0f, 1.0f));
