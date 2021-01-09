@@ -10,8 +10,12 @@
 constexpr float TAU = MathConstants<float>::twoPi;
 constexpr int MAX_POLYPHONY = 64;
 
-class ParticleSynth : public Synthesiser {
+class ParticleSynth : public Synthesiser, public AudioProcessorValueTreeState::Listener {
 private:
+    struct VoiceParams {
+        float attackTime = 0.01f;
+        float decayHalfLife = 0.05f;
+    };
     class SineOsc {
     private:
         float angle = 0.0f;
@@ -44,14 +48,15 @@ private:
         SineOsc osc;
         float level = 0.0f;
         float attack = 0.0f;
-        float attackTime = 0.01f;
-        float decayHalfLife = 0.05f;
 
         float nextPanValue = 0.0f;
         float currentPanValue = 0.0f;
+
+        const VoiceParams& voiceParams;
     public:
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ParticleVoice)
-        ParticleVoice() = default;
+        ParticleVoice(const VoiceParams& voiceParams): voiceParams(voiceParams) { };
+
         virtual ~ParticleVoice() = default;
         bool canPlaySound(SynthesiserSound *sound) override { return true; }
         void startNote(int midiNoteNumber, float velocity, SynthesiserSound *sound, int currentPitchWheelPosition) override {
@@ -90,8 +95,8 @@ private:
         void renderNextBlock(AudioBuffer<float> &outputBuffer, int startSample, int numSamples) override {
             auto [lAmp, rAmp] = equalPower(currentPanValue);
             auto sampleRate = getSampleRate();
-            auto attackIncrement = 1.0f / (sampleRate * attackTime);
-            auto decayFactor = pow(0.5f, 1.0f / (sampleRate * decayHalfLife));
+            auto attackIncrement = 1.0f / (sampleRate * voiceParams.attackTime);
+            auto decayFactor = pow(0.5f, 1.0f / (sampleRate * voiceParams.decayHalfLife));
             if (level >= 0.01f) {
                 auto l = outputBuffer.getWritePointer(0);
                 auto r = outputBuffer.getWritePointer(1);
@@ -110,11 +115,22 @@ private:
             }
         }
     };
+
+    VoiceParams params;
 public:
     ParticleSynth() {
         addSound(new ParticleSound);
         for (auto i = 0; i < MAX_POLYPHONY; i++) {
-            addVoice(new ParticleVoice());
+            auto newVoice = new ParticleVoice(params);
+            addVoice(newVoice);
+        }
+    }
+
+    void parameterChanged (const String& parameterID, float newValue) override {
+        if (parameterID == "attack_time") {
+            params.attackTime = newValue;
+        } else if (parameterID == "decay_half_life") {
+            params.decayHalfLife = newValue;
         }
     }
 };

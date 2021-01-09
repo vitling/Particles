@@ -30,15 +30,26 @@ private:
         nullptr,
         "ParticleSim", {
             param("particle_multiplier", 1.0f, 20.0f, 5.0f),
-            param("gravity", 0.0f, 2.0f, 0.0f)
+            param("gravity", 0.0f, 2.0f, 0.0f),
+            param("attack_time", 0.001f, 0.1f, 0.01f),
+            param("decay_half_life", 0.001f, 0.5f, 0.05f),
+            param("master_volume", -12.0f, 3.0f, 0.0f)
         }
     };
+
+    /** Shortcut for getting true (non-normalised) values out of a parameter tree */
+    float getParameterValue(StringRef parameterName) const {
+        auto param = state.getParameter(parameterName);
+        return param->convertFrom0to1(param->getValue());
+    }
 
 public:
     ParticlesAudioProcessor():
         AudioProcessor(BusesProperties().withOutput ("Output", AudioChannelSet::stereo(), true)) {
         state.addParameterListener("particle_multiplier", this);
         state.addParameterListener("gravity", this);
+        state.addParameterListener("attack_time", &poly);
+        state.addParameterListener("decay_half_life", &poly);
     }
 
     ~ParticlesAudioProcessor() override = default;
@@ -100,6 +111,10 @@ public:
 
         poly.renderNextBlock(audio, blockOut, 0,audio.getNumSamples());
 
+        audio.applyGain(pow(10, getParameterValue("master_volume")/10));
+
+        midiInput.clear();
+        midiInput.addEvents(blockOut, 0, audio.getNumSamples(), 0);
     }
 
     AudioProcessorEditor* createEditor() override;
@@ -161,7 +176,7 @@ public:
     explicit ParticlesPluginEditor(ParticlesAudioProcessor &proc):
     AudioProcessorEditor(proc),
     vis(proc.simulation()) {
-        generateUI(proc.state, {"particle_multiplier", "gravity"});
+        generateUI(proc.state, {"particle_multiplier", "gravity", "attack_time", "decay_half_life", "master_volume"});
 
         setSize(1000,1000);
         vis.setBounds(200,200,600,600);
