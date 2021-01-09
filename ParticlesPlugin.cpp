@@ -12,6 +12,10 @@ inline auto param(const String& pid, float minValue, float maxValue, float def) 
     return std::make_unique<AudioParameterFloat>(pid, pid, minValue, maxValue, def);
 }
 
+inline auto selectionParam(const String& pid, const StringArray& choices) {
+    return std::make_unique<AudioParameterChoice>(pid, pid, choices, 0);
+}
+
 class ParticlesAudioProcessor : public AudioProcessor, public AudioProcessorValueTreeState::Listener  {
 private:
     friend class ParticlesPluginEditor;
@@ -33,9 +37,13 @@ private:
             param("gravity", 0.0f, 2.0f, 0.0f),
             param("attack_time", 0.001f, 0.1f, 0.01f),
             param("decay_half_life", 0.001f, 0.5f, 0.05f),
-            param("master_volume", -12.0f, 3.0f, 0.0f)
+            param("master_volume", -12.0f, 3.0f, 0.0f),
+            param("waveform", 0.0f, 1.0f, 0.0f),
+            selectionParam("particle_generation", {"top_left", "random_inside", "random_outside"})
         }
     };
+
+    AudioParameterChoice *particleGeneration;
 
     /** Shortcut for getting true (non-normalised) values out of a parameter tree */
     float getParameterValue(StringRef parameterName) const {
@@ -50,6 +58,9 @@ public:
         state.addParameterListener("gravity", this);
         state.addParameterListener("attack_time", &poly);
         state.addParameterListener("decay_half_life", &poly);
+        state.addParameterListener("waveform", &poly);
+        state.addParameterListener("particle_generation", this);
+        particleGeneration = dynamic_cast<AudioParameterChoice*>(state.getParameter("particle_generation"));
     }
 
     ~ParticlesAudioProcessor() override = default;
@@ -59,6 +70,11 @@ public:
             sim.setParticleMultiplier(static_cast<int>(newValue));
         } else if (parameterID == "gravity") {
             sim.setGravity(newValue);
+        } else if (parameterID == "particle_generation") {
+            auto choice = particleGeneration->getCurrentChoiceName();
+            if (choice == "top_left") sim.setGenerationRule(TOP_LEFT);
+            else if (choice == "random_inside") sim.setGenerationRule(RANDOM_INSIDE);
+            else if (choice == "random_outside") sim.setGenerationRule(RANDOM_OUTSIDE);
         }
     }
 
@@ -176,31 +192,35 @@ public:
     explicit ParticlesPluginEditor(ParticlesAudioProcessor &proc):
     AudioProcessorEditor(proc),
     vis(proc.simulation()) {
-        generateUI(proc.state, {"particle_multiplier", "gravity", "attack_time", "decay_half_life", "master_volume"});
-
-        setSize(1000,1000);
-        vis.setBounds(200,200,600,600);
+        generateUI(proc.state, {"particle_multiplier", "gravity", "attack_time", "decay_half_life", "master_volume", "waveform", "particle_generation"});
+        setSize(800,600);
+        vis.setBounds(200,0,600,600);
         addAndMakeVisible(vis);
 
     }
 
     void generateUI(AudioProcessorValueTreeState& state, const std::initializer_list<String> parameters) {
         auto x = 0;
+        auto y = 0;
         auto cw = 100;
-        auto ch = 200;
+        auto ch = 100;
         for (auto &param: parameters) {
             auto control = std::make_unique<ParamControl>(*state.getParameter(param));
             addAndMakeVisible(control->slider);
-            control->slider.setBounds(x,0,cw,ch-20);
-            control->slider.setSliderStyle(Slider::LinearVertical);
-            control->slider.setTextBoxStyle(Slider::TextBoxBelow, true, 50,20);
+            control->slider.setBounds(x,y,cw,ch-20);
+            control->slider.setSliderStyle(Slider::RotaryHorizontalVerticalDrag);
+            control->slider.setTextBoxStyle(Slider::TextBoxBelow, true, 100,20);
             control->label.setText(param,NotificationType::dontSendNotification);
             control->label.setJustificationType(Justification::centred);
-            control->label.setBounds(x, ch-20,cw,20);
+            control->label.setBounds(x,y + ch-20,cw,20);
             addAndMakeVisible(control->slider);
             addAndMakeVisible(control->label);
             controls.push_back(std::move(control));
             x+=cw;
+            if (x >= 200) {
+                x = 0;
+                y+=ch;
+            }
         }
     }
 

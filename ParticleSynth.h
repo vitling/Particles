@@ -15,8 +15,10 @@ private:
     struct VoiceParams {
         float attackTime = 0.01f;
         float decayHalfLife = 0.05f;
+        float waveform = 0.0f;
     };
-    class SineOsc {
+
+    class OscCycler {
     private:
         float angle = 0.0f;
         float frequency = 440.0f;
@@ -25,10 +27,11 @@ private:
         void setSampleRate(float sampleRate) {
             currentSampleRate = sampleRate;
         }
+
         float next() {
             angle += (frequency / currentSampleRate) * TAU;
             if (angle > TAU) angle -= TAU;
-            return sin(angle);
+            return angle;
         }
 
         void reset() {
@@ -39,13 +42,15 @@ private:
             frequency = freq;
         }
     };
+
+
     class ParticleSound: public SynthesiserSound {
         bool appliesToNote(int midiNoteNumber) override { return true; }
         bool appliesToChannel(int midiChannel) override { return true; }
     };
     class ParticleVoice: public SynthesiserVoice {
     private:
-        SineOsc osc;
+        OscCycler cycler;
         float level = 0.0f;
         float attack = 0.0f;
 
@@ -62,9 +67,9 @@ private:
         void startNote(int midiNoteNumber, float velocity, SynthesiserSound *sound, int currentPitchWheelPosition) override {
             Random rnd;
             currentPanValue = nextPanValue;
-            osc.setSampleRate(getSampleRate());
-            osc.setFrequency(MidiMessage::getMidiNoteInHertz(midiNoteNumber) * (0.995f + 0.01f * rnd.nextFloat()));
-            osc.reset();
+            cycler.setSampleRate(getSampleRate());
+            cycler.setFrequency(MidiMessage::getMidiNoteInHertz(midiNoteNumber) * (0.995f + 0.01f * rnd.nextFloat()));
+            cycler.reset();
             attack = 0.0f;
             level = velocity;
         }
@@ -92,6 +97,14 @@ private:
             };
         }
 
+        constexpr static inline float saw(float a) {
+            return 2.0f * (a / TAU) - 1.0f;
+        }
+
+        inline float oscFunction(float a) const {
+            return (1.0f - voiceParams.waveform) * sin(a) + voiceParams.waveform * saw(a);
+        }
+
         void renderNextBlock(AudioBuffer<float> &outputBuffer, int startSample, int numSamples) override {
             auto [lAmp, rAmp] = equalPower(currentPanValue);
             auto sampleRate = getSampleRate();
@@ -101,7 +114,7 @@ private:
                 auto l = outputBuffer.getWritePointer(0);
                 auto r = outputBuffer.getWritePointer(1);
                 for (auto i = startSample; i < startSample + numSamples; i++) {
-                    float sample = osc.next() * level * std::min(attack, 1.0f);
+                    float sample = oscFunction(cycler.next()) * level * std::min(attack, 1.0f);
                     level *= decayFactor;
                     attack += attackIncrement;
 
@@ -131,6 +144,8 @@ public:
             params.attackTime = newValue;
         } else if (parameterID == "decay_half_life") {
             params.decayHalfLife = newValue;
+        } else if (parameterID == "waveform") {
+            params.waveform = newValue;
         }
     }
 };

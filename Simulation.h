@@ -7,6 +7,10 @@
 #include <JuceHeader.h>
 #include "Vec.h"
 
+
+// TODO configurable fixed mass/radius
+// TODO particle generation by lambdas maybe
+
 constexpr int MAX_PARTICLES = 200;
 
 struct Particle {
@@ -18,6 +22,12 @@ struct Particle {
     float lastCollided = 1000;
     int note = 32;
     bool enabled = false;
+};
+
+enum ParticleGeneration {
+    TOP_LEFT,
+    RANDOM_INSIDE,
+    RANDOM_OUTSIDE
 };
 
 class ParticleSimulation {
@@ -35,6 +45,8 @@ private:
 
     const int scale[5] = {0,2,3,7,10};
 
+    ParticleGeneration generationRule = TOP_LEFT;
+
     int createNote() {
         return scale[rnd.nextInt(5)] + rnd.nextInt(4) * 12;
     }
@@ -46,18 +58,59 @@ private:
         return -1;
     }
 
+    void generateTopLeft(Particle &p, float velocity) {
+        p.pos = {rnd.nextFloat() * 200, rnd.nextFloat() * 200};
+        p.vel = 4 * velocity * normalise({rnd.nextFloat(), rnd.nextFloat()});
+    }
+
+    void generateRandomInside(Particle &p, float velocity) {
+        p.pos = {rnd.nextFloat() * w, rnd.nextFloat() * h};
+        p.vel = 4 * velocity * normalise({rnd.nextFloat() - 0.5f, rnd.nextFloat() - 0.5f});
+    }
+
+    void generateRandomOutside(Particle &p, float velocity) {
+        if (rnd.nextBool()) {
+            p.pos = {
+                    rnd.nextFloat() * 100 + (rnd.nextBool() ? -100.0f : w),
+                    rnd.nextFloat() * h
+            };
+        } else {
+            p.pos = {
+                    rnd.nextFloat() * w,
+                    rnd.nextFloat() * 100+ (rnd.nextBool() ? -100.0f : h)
+            };
+        }
+        p.vel = 4 * velocity * normalise({rnd.nextFloat() - 0.5f, rnd.nextFloat() - 0.5f});
+    }
+
+    void setParticleProperties(Particle &p, int noteNumber) {
+        p.note = noteNumber;
+        p.mass = 100000.0 / (110.0 * (pow(2.0, (p.note / 12.0))));
+        p.hue = 30 + 360.0 * (p.note % 12) / 12.0;
+        p.radius = sqrt(p.mass) * 4;
+        p.lastCollided = 1000;
+        p.enabled = true;
+    }
+
+    void setupParticle(Particle &p, int noteNumber, float velocity) {
+        setParticleProperties(p, noteNumber);
+        switch (generationRule) {
+            case TOP_LEFT:
+                generateTopLeft(p, velocity);
+                break;
+            case RANDOM_INSIDE:
+                generateRandomInside(p, velocity);
+                break;
+            case RANDOM_OUTSIDE:
+                generateRandomOutside(p, velocity);
+                break;
+        }
+    }
+
     void createParticle(int noteNumber, float velocity) {
         int freeParticle = findFreeParticle();
         if (freeParticle != -1) {
-            Particle &p = particles[freeParticle];
-            p.pos = {rnd.nextFloat() * 200, rnd.nextFloat() * 200};
-            p.vel = 4 * velocity * normalise({rnd.nextFloat(), rnd.nextFloat()});
-            p.note = noteNumber;
-            p.mass = 100000.0 / (110.0 * (pow(2.0, (p.note / 12.0))));
-            p.hue = 30 + 360.0 * (p.note % 12) / 12.0;
-            p.radius = sqrt(p.mass) * 4;
-            p.lastCollided = 1000;
-            p.enabled = true;
+            setupParticle(particles[freeParticle], noteNumber, velocity);
         }
     }
 public:
@@ -89,14 +142,13 @@ public:
         gravity = newGravity;
     }
 
+    void setGenerationRule(ParticleGeneration genRule) {
+        generationRule = genRule;
+    }
+
 
     void step(const std::function<void (int, float, float)> &collisionCallback, float fraction = 1.0f) {
-//        if (targetParticles > nParticles) {
-//            //createParticle();
-//        }
-//        if (targetParticles < nParticles) {
-//            //removeParticle();
-//        }
+
         for (auto i = 0 ; i < MAX_PARTICLES; i++) {
             Particle &p = particles[i];
             if (p.enabled) {
@@ -145,6 +197,7 @@ public:
 class ParticleSimulationVisualiser : public Component, private Timer {
 private:
     const ParticleSimulation &sim;
+    const std::vector<String> noteNames = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};
 public:
     ParticleSimulationVisualiser(const ParticleSimulation &sim): sim(sim) {
         startTimerHz(60);
@@ -154,8 +207,17 @@ public:
         repaint();
     }
 
+    String getNoteName(int note) {
+        int octave = (note / 12) - 1;
+        int positionInOctave = note % 12;
+        String noteName = noteNames[positionInOctave];
+        noteName += octave;
+        return noteName;
+    }
+
     void paint(Graphics &g) override {
         g.fillAll(Colours::white.withAlpha(0.5f));
+        g.setFont(g.getCurrentFont().withHeight(8));
         for (const auto & p : sim.particles) {
             if (p.enabled) {
                 if (p.lastCollided < 20) {
@@ -168,6 +230,8 @@ public:
                 float rx = p.radius * (getWidth()/1000.0);
                 float ry = p.radius * (getHeight()/1000.0);
                 g.fillEllipse(x-rx, y-ry, rx *2, ry * 2);
+                g.setColour(Colours::white);
+                g.drawText(getNoteName(p.note), x-rx, y-ry, rx*2, ry*2, Justification::centred, false);
             }
         }
     }
