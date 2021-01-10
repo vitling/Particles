@@ -43,13 +43,10 @@ private:
 
     int particleGenerationMultiplier = 1;
 
-    const int scale[5] = {0,2,3,7,10};
-
     ParticleGeneration generationRule = TOP_LEFT;
 
-    int createNote() {
-        return scale[rnd.nextInt(5)] + rnd.nextInt(4) * 12;
-    }
+    bool sizeByNote = true;
+    float particleScale = 1.0f;
 
     int findFreeParticle() {
         for (auto i = 0; i < MAX_PARTICLES; i++) {
@@ -85,9 +82,9 @@ private:
 
     void setParticleProperties(Particle &p, int noteNumber) {
         p.note = noteNumber;
-        p.mass = 100000.0 / (110.0 * (pow(2.0, (p.note / 12.0))));
+        p.mass = sizeByNote ? particleScale * 100000.0 / (110.0 * (pow(2.0, (p.note / 12.0)))) : 300.0f * particleScale;
         p.hue = 30 + 360.0 * (p.note % 12) / 12.0;
-        p.radius = sqrt(p.mass) * 4;
+        p.radius =  sqrt(p.mass) * 4;
         p.lastCollided = 1000;
         p.enabled = true;
     }
@@ -144,6 +141,14 @@ public:
 
     void setGenerationRule(ParticleGeneration genRule) {
         generationRule = genRule;
+    }
+
+    void setSizeByNote(bool changeSizeByNote) {
+        sizeByNote = changeSizeByNote;
+    }
+
+    void setScale(float scale) {
+        particleScale = scale;
     }
 
 

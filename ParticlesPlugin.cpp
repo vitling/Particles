@@ -16,6 +16,10 @@ inline auto selectionParam(const String& pid, const StringArray& choices) {
     return std::make_unique<AudioParameterChoice>(pid, pid, choices, 0);
 }
 
+inline auto boolParam(const String& pid, bool def) {
+    return std::make_unique<AudioParameterBool>(pid, pid, def);
+}
+
 class ParticlesAudioProcessor : public AudioProcessor, public AudioProcessorValueTreeState::Listener  {
 private:
     friend class ParticlesPluginEditor;
@@ -39,11 +43,14 @@ private:
             param("decay_half_life", 0.001f, 0.5f, 0.05f),
             param("master_volume", -12.0f, 3.0f, 0.0f),
             param("waveform", 0.0f, 1.0f, 0.0f),
-            selectionParam("particle_generation", {"top_left", "random_inside", "random_outside"})
+            selectionParam("particle_generation", {"top_left", "random_inside", "random_outside"}),
+            param("scale", 0.1f, 2.0f,1.0f),
+            boolParam("size_by_note", true)
         }
     };
 
     AudioParameterChoice *particleGeneration;
+    AudioParameterBool *sizeByNote;
 
     /** Shortcut for getting true (non-normalised) values out of a parameter tree */
     float getParameterValue(StringRef parameterName) const {
@@ -60,7 +67,10 @@ public:
         state.addParameterListener("decay_half_life", &poly);
         state.addParameterListener("waveform", &poly);
         state.addParameterListener("particle_generation", this);
+        state.addParameterListener("size_by_note", this);
+        state.addParameterListener("scale", this);
         particleGeneration = dynamic_cast<AudioParameterChoice*>(state.getParameter("particle_generation"));
+        sizeByNote = dynamic_cast<AudioParameterBool*>(state.getParameter("size_by_note"));
     }
 
     ~ParticlesAudioProcessor() override = default;
@@ -75,6 +85,10 @@ public:
             if (choice == "top_left") sim.setGenerationRule(TOP_LEFT);
             else if (choice == "random_inside") sim.setGenerationRule(RANDOM_INSIDE);
             else if (choice == "random_outside") sim.setGenerationRule(RANDOM_OUTSIDE);
+        } else if (parameterID == "size_by_note") {
+            sim.setSizeByNote(sizeByNote->get());
+        } else if (parameterID == "scale") {
+            sim.setScale(newValue);
         }
     }
 
@@ -192,7 +206,7 @@ public:
     explicit ParticlesPluginEditor(ParticlesAudioProcessor &proc):
     AudioProcessorEditor(proc),
     vis(proc.simulation()) {
-        generateUI(proc.state, {"particle_multiplier", "gravity", "attack_time", "decay_half_life", "master_volume", "waveform", "particle_generation"});
+        generateUI(proc.state, {"particle_multiplier", "gravity", "attack_time", "decay_half_life", "master_volume", "waveform", "particle_generation", "scale", "size_by_note"});
         setSize(800,600);
         vis.setBounds(200,0,600,600);
         addAndMakeVisible(vis);
