@@ -8,6 +8,34 @@
 
 class ParticlesPluginEditor;
 
+namespace Params {
+    using StrConst = const char * const;
+    StrConst MULTIPLIER = "particle_multiplier";
+    StrConst GRAVITY = "gravity";
+    StrConst ATTACK = "attack_time";
+    StrConst DECAY = "decay_half_life";
+    StrConst MASTER = "master_volume";
+    StrConst WAVEFORM = "waveform";
+    StrConst GENERATION = "particle_generation";
+    StrConst SCALE = "scale";
+    StrConst SIZE_BY_NOTE = "size_by_note";
+
+    StringArray all() {
+        return {
+            MULTIPLIER,
+            GRAVITY,
+            ATTACK,
+            DECAY,
+            MASTER,
+            WAVEFORM,
+            GENERATION,
+            SCALE,
+            SIZE_BY_NOTE
+        };
+    }
+}
+
+
 inline auto numParam(const String& pid, const NormalisableRange<float>& range, float def) {
     return std::make_unique<AudioParameterFloat>(pid, pid, range, def);
 }
@@ -47,15 +75,15 @@ private:
         *this,
         nullptr,
         "ParticleSim", {
-            numParam("particle_multiplier", {1.0f, 20.0f, 1.0f}, 5.0f),
-            numParam("gravity", {0.0f, 2.0f}, 0.0f),
-            numParam("attack_time", {0.001f, 0.1f}, 0.01f),
-            numParam("decay_half_life", {0.001f, 0.5f}, 0.05f),
-            numParam("master_volume", {-12.0f, 3.0f}, 0.0f),
-            numParam("waveform", {0.0f, 1.0f}, 0.0f),
-            selectionParam("particle_generation", {"top_left", "random_inside", "random_outside", "top_random"}),
-            numParam("scale", {0.1f, 2.0f},1.0f),
-            boolParam("size_by_note", true)
+            numParam(Params::MULTIPLIER, {1.0f, 20.0f, 1.0f}, 5.0f),
+            numParam(Params::GRAVITY, {0.0f, 2.0f}, 0.0f),
+            numParam(Params::ATTACK, {0.001f, 0.1f}, 0.01f),
+            numParam(Params::DECAY, {0.001f, 0.5f}, 0.05f),
+            numParam(Params::MASTER, {-12.0f, 3.0f}, 0.0f),
+            numParam(Params::WAVEFORM, {0.0f, 1.0f}, 0.0f),
+            selectionParam(Params::GENERATION, {"top_left", "random_inside", "random_outside", "top_random"}),
+            numParam(Params::SCALE, {0.1f, 2.0f}, 1.0f),
+            boolParam(Params::SIZE_BY_NOTE, true)
         }
     };
 
@@ -69,42 +97,52 @@ private:
         return param->convertFrom0to1(param->getValue());
     }
 
+    void addStateListeners(AudioProcessorValueTreeState::Listener * listener, const StringArray& parameters) {
+        for (auto &p: parameters) {
+            state.addParameterListener(p, listener);
+        }
+    }
+
 public:
     ParticlesAudioProcessor():
         AudioProcessor(BusesProperties().withOutput ("Output", AudioChannelSet::stereo(), true)) {
 
-        state.addParameterListener("particle_multiplier", this);
-        state.addParameterListener("gravity", this);
-        state.addParameterListener("particle_generation", this);
-        state.addParameterListener("size_by_note", this);
-        state.addParameterListener("scale", this);
+        addStateListeners(this, {
+                Params::MULTIPLIER,
+                Params::GRAVITY,
+                Params::GENERATION,
+                Params::SIZE_BY_NOTE,
+                Params::SCALE
+        });
 
-        state.addParameterListener("attack_time", &synth);
-        state.addParameterListener("decay_half_life", &synth);
-        state.addParameterListener("waveform", &synth);
+        addStateListeners(&synth, {
+                Params::ATTACK,
+                Params::DECAY,
+                Params::WAVEFORM
+        });
 
         // ideally we wouldn't have to cast at all, but the AudioProcessorValueStateTree stores everything as a
         // RangedAudioParameter* so we cast here to fail fast rather than crash in the change handler
-        particleGeneration = dynamic_cast<AudioParameterChoice*>(state.getParameter("particle_generation"));
-        sizeByNote = dynamic_cast<AudioParameterBool*>(state.getParameter("size_by_note"));
+        particleGeneration = dynamic_cast<AudioParameterChoice*>(state.getParameter(Params::GENERATION));
+        sizeByNote = dynamic_cast<AudioParameterBool*>(state.getParameter(Params::SIZE_BY_NOTE));
     }
 
     ~ParticlesAudioProcessor() override = default;
 
     void parameterChanged (const String& parameterID, float newValue) override {
-        if (parameterID == "particle_multiplier") {
+        if (parameterID == Params::MULTIPLIER) {
             sim.setParticleMultiplier(static_cast<int>(newValue));
-        } else if (parameterID == "gravity") {
+        } else if (parameterID == Params::GRAVITY) {
             sim.setGravity(newValue);
-        } else if (parameterID == "particle_generation") {
+        } else if (parameterID == Params::GENERATION) {
             auto choice = particleGeneration->getCurrentChoiceName();
             if (choice == "top_left") sim.setGenerationRule(TOP_LEFT);
             else if (choice == "random_inside") sim.setGenerationRule(RANDOM_INSIDE);
             else if (choice == "random_outside") sim.setGenerationRule(RANDOM_OUTSIDE);
             else if (choice == "top_random") sim.setGenerationRule(TOP_RANDOM);
-        } else if (parameterID == "size_by_note") {
+        } else if (parameterID == Params::SIZE_BY_NOTE) {
             sim.setSizeByNote(sizeByNote->get());
-        } else if (parameterID == "scale") {
+        } else if (parameterID == Params::SCALE) {
             sim.setScale(newValue);
         }
     }
@@ -170,7 +208,7 @@ public:
 
         synth.renderNextBlock(audio, midiEventsForCurrentSampleRange, 0,audio.getNumSamples());
 
-        audio.applyGain(pow(10, getParameterValue("master_volume")/10));
+        audio.applyGain(pow(10, getParameterValue(Params::MASTER)/10));
 
         // If we want to allow midi "sidechain" output (the only way to support plugin midi effects in some hosts) then
         // we need to leave some midi data in the buffer that we were given at the start
@@ -237,13 +275,13 @@ public:
     explicit ParticlesPluginEditor(ParticlesAudioProcessor &proc):
     AudioProcessorEditor(proc),
     vis(proc.simulation()) {
-        generateUI(proc.state, {"particle_multiplier", "gravity", "attack_time", "decay_half_life", "master_volume", "waveform", "particle_generation", "scale", "size_by_note"});
+        generateUI(proc.state, Params::all());
         setSize(800,600);
         vis.setBounds(200,0,600,600);
         addAndMakeVisible(vis);
     }
 
-    void generateUI(AudioProcessorValueTreeState& state, const std::initializer_list<String> parameters) {
+    void generateUI(AudioProcessorValueTreeState& state, StringArray parameters) {
         auto x = 0;
         auto y = 0;
         auto cw = 100;
