@@ -36,16 +36,16 @@ namespace Params {
 }
 
 
-inline auto numParam(const String& pid, const NormalisableRange<float>& range, float def) {
-    return std::make_unique<AudioParameterFloat>(pid, pid, range, def);
+inline auto numParam(const String& pid, const String& name, const NormalisableRange<float>& range, float def) {
+    return std::make_unique<AudioParameterFloat>(pid, name, range, def);
 }
 
-inline auto selectionParam(const String& pid, const StringArray& choices) {
-    return std::make_unique<AudioParameterChoice>(pid, pid, choices, 0);
+inline auto selectionParam(const String& pid, const String& name, const StringArray& choices) {
+    return std::make_unique<AudioParameterChoice>(pid, name, choices, 0);
 }
 
-inline auto boolParam(const String& pid, bool def) {
-    return std::make_unique<AudioParameterBool>(pid, pid, def);
+inline auto boolParam(const String& pid, const String& name, bool def) {
+    return std::make_unique<AudioParameterBool>(pid, name, def);
 }
 
 class ParticlesAudioProcessor : public AudioProcessor, public AudioProcessorValueTreeState::Listener  {
@@ -75,15 +75,15 @@ private:
         *this,
         nullptr,
         "ParticleSim", {
-            numParam(Params::MULTIPLIER, {1.0f, 20.0f, 1.0f}, 5.0f),
-            numParam(Params::GRAVITY, {0.0f, 2.0f}, 0.0f),
-            numParam(Params::ATTACK, {0.001f, 0.1f}, 0.01f),
-            numParam(Params::DECAY, {0.001f, 0.5f}, 0.05f),
-            numParam(Params::MASTER, {-12.0f, 3.0f}, 0.0f),
-            numParam(Params::WAVEFORM, {0.0f, 1.0f}, 0.0f),
-            selectionParam(Params::GENERATION, {"top_left", "random_inside", "random_outside", "top_random"}),
-            numParam(Params::SCALE, {0.1f, 2.0f}, 1.0f),
-            boolParam(Params::SIZE_BY_NOTE, true)
+            numParam(Params::MULTIPLIER, "Particle Multiplier", {1.0f, 20.0f, 1.0f}, 5.0f),
+            numParam(Params::GRAVITY, "Gravity", {0.0f, 2.0f, 0.01f}, 0.0f),
+            numParam(Params::ATTACK, "Attack Time(s)", {0.001f, 0.1f, 0.001f}, 0.01f),
+            numParam(Params::DECAY, "Decay half-life(s)", {0.001f, 0.5f, 0.001f}, 0.05f),
+            numParam(Params::MASTER, "Master Volume (dB)", {-12.0f, 3.0f, 0.01f}, 0.0f),
+            numParam(Params::WAVEFORM, "Sin->Saw", {0.0f, 1.0f, 0.01f}, 0.0f),
+            selectionParam(Params::GENERATION, "Particle Origin" , {"top_left", "random_inside", "random_outside", "top_random"}),
+            numParam(Params::SCALE, "Particle Scale Factor", {0.1f, 2.0f, 0.01f}, 1.0f),
+            boolParam(Params::SIZE_BY_NOTE, "Note-dependent size", true)
         }
     };
 
@@ -292,7 +292,7 @@ public:
             control->slider.setBounds(x,y,cw,ch-20);
             control->slider.setSliderStyle(Slider::RotaryHorizontalVerticalDrag);
             control->slider.setTextBoxStyle(Slider::TextBoxBelow, true, 100,20);
-            control->label.setText(param,NotificationType::dontSendNotification);
+            control->label.setText(state.getParameter(param)->getName(20),NotificationType::dontSendNotification);
             control->label.setJustificationType(Justification::centred);
             control->label.setBounds(x,y + ch-20,cw,20);
             addAndMakeVisible(control->slider);
