@@ -5,6 +5,7 @@
 #include <utility>
 #include "Simulation.h"
 #include "ParticleSynth.h"
+#include "BasicStereoSynthPlugin.h"
 
 class ParticlesPluginEditor;
 
@@ -48,7 +49,9 @@ inline auto boolParam(const String& pid, const String& name, bool def) {
     return std::make_unique<AudioParameterBool>(pid, name, def);
 }
 
-class ParticlesAudioProcessor : public AudioProcessor, public AudioProcessorValueTreeState::Listener  {
+
+
+class ParticlesAudioProcessor : public BasicStereoSynthPlugin, public AudioProcessorValueTreeState::Listener  {
 private:
     friend class ParticlesPluginEditor;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ParticlesAudioProcessor)
@@ -91,12 +94,6 @@ private:
     AudioParameterChoice *particleGeneration;
     AudioParameterBool *sizeByNote;
 
-    // Shortcut for getting true (non-normalised) float values out of a parameter tree
-    float getParameterValue(StringRef parameterName) const {
-        auto param = state.getParameter(parameterName);
-        return param->convertFrom0to1(param->getValue());
-    }
-
     void addStateListeners(AudioProcessorValueTreeState::Listener * listener, const StringArray& parameters) {
         for (auto &p: parameters) {
             state.addParameterListener(p, listener);
@@ -104,8 +101,7 @@ private:
     }
 
 public:
-    ParticlesAudioProcessor():
-        AudioProcessor(BusesProperties().withOutput ("Output", AudioChannelSet::stereo(), true)) {
+    ParticlesAudioProcessor(): BasicStereoSynthPlugin("Particles") {
 
         addStateListeners(this, {
                 Params::MULTIPLIER,
@@ -129,6 +125,8 @@ public:
 
     ~ParticlesAudioProcessor() override = default;
 
+    virtual AudioProcessorValueTreeState & parameterState() { return state; }
+
     void parameterChanged (const String& parameterID, float newValue) override {
         if (parameterID == Params::MULTIPLIER) {
             sim.setParticleMultiplier(static_cast<int>(newValue));
@@ -151,7 +149,6 @@ public:
         synth.setCurrentPlaybackSampleRate(sampleRate);
     }
     void releaseResources() override {}
-    bool isBusesLayoutSupported (const BusesLayout& layouts) const override {return (layouts.getMainOutputChannels() == 2);}
 
     void processBlock (AudioBuffer<float>& audio, MidiBuffer& midiInput) override {
         int maximumMidiFutureInSamples = 40000;
@@ -217,40 +214,6 @@ public:
     }
 
     AudioProcessorEditor* createEditor() override;
-
-    // Various metadata about the plugin
-    bool hasEditor() const override { return true; }
-    const String getName() const override { return "Particles";}
-    bool acceptsMidi() const override {return true;}
-    bool producesMidi() const override {return false;}
-    bool isMidiEffect() const override {return false;}
-    double getTailLengthSeconds() const override {
-        return 0.0;
-    }
-    int getNumPrograms() override { return 1; }
-    int getCurrentProgram() override { return 1; }
-    void setCurrentProgram (int index) override {}
-    const String getProgramName (int index) override { return "Default Program"; }
-    void changeProgramName (int index, const String& newName) override { }
-
-    void getStateInformation (MemoryBlock& destData) override {
-        auto stateToSave = state.copyState();
-        std::unique_ptr<XmlElement> xml (stateToSave.createXml());
-        copyXmlToBinary(*xml, destData);
-    }
-
-    void setStateInformation (const void* data, int sizeInBytes) override {
-        std::unique_ptr<XmlElement> xmlState (getXmlFromBinary(data, sizeInBytes));
-        if (xmlState != nullptr) {
-            if (xmlState->hasTagName(state.state.getType())) {
-                state.replaceState(ValueTree::fromXml(*xmlState));
-            }
-        }
-    }
-
-    const ParticleSimulation & simulation() {
-        return sim;
-    }
 };
 
 AudioProcessor* JUCE_CALLTYPE createPluginFilter()
@@ -274,14 +237,14 @@ private:
 public:
     explicit ParticlesPluginEditor(ParticlesAudioProcessor &proc):
     AudioProcessorEditor(proc),
-    vis(proc.simulation()) {
+    vis(proc.sim) {
         generateUI(proc.state, Params::all());
         setSize(800,600);
         vis.setBounds(200,0,600,600);
         addAndMakeVisible(vis);
     }
 
-    void generateUI(AudioProcessorValueTreeState& state, StringArray parameters) {
+    void generateUI(AudioProcessorValueTreeState& state, const StringArray& parameters) {
         auto x = 0;
         auto y = 0;
         auto cw = 100;
