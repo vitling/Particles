@@ -7,11 +7,10 @@
 
 #include <JuceHeader.h>
 
-constexpr float TAU = MathConstants<float>::twoPi;
-constexpr int MAX_POLYPHONY = 64;
-
 class ParticleSynth : public Synthesiser, public AudioProcessorValueTreeState::Listener {
 private:
+    static constexpr float TAU = MathConstants<float>::twoPi;
+    static constexpr int MAX_POLYPHONY = 64;
     struct VoiceParams {
         float attackTime = 0.01f;
         float decayHalfLife = 0.05f;

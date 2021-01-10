@@ -3,11 +3,10 @@
 #include <JuceHeader.h>
 
 #include <utility>
-#include "Simulation.h"
+#include "ParticleSimulation.h"
+#include "ParticleSimulationVisualiser.h"
 #include "ParticleSynth.h"
 #include "BasicStereoSynthPlugin.h"
-
-class ParticlesPluginEditor;
 
 namespace Params {
     using StrConst = const char * const;
@@ -99,12 +98,19 @@ private:
             param(Params::WAVEFORM, "Sin->Saw", {0.0f, 1.0f, 0.01f}, 0.0f),
             param(Params::ORIGIN, "Particle Origin" , Params::Origin::all(), Params::Origin::RANDOM_INSIDE),
             param(Params::SCALE, "Particle Scale Factor", {0.1f, 2.0f, 0.01f}, 1.0f),
-            param(Params::SIZE_BY_NOTE, "Note-dependent size", true)
+            param(Params::SIZE_BY_NOTE, "Note->Size", true)
         }
     };
 
+    std::map<String, ParticleOrigin> originMapping = {
+            {Params::Origin::TOP_RANDOM, ParticleOrigin::TOP_RANDOM},
+            {Params::Origin::RANDOM_OUTSIDE, ParticleOrigin::RANDOM_OUTSIDE},
+            {Params::Origin::RANDOM_INSIDE, ParticleOrigin::RANDOM_INSIDE},
+            {Params::Origin::TOP_LEFT, ParticleOrigin::TOP_LEFT}
+    };
+
     // Keep well-typed pointers to non-float parameters to avoid messy dynamic_casts in the parameterChanged function
-    AudioParameterChoice *particleGeneration;
+    AudioParameterChoice *particleOrigin;
     AudioParameterBool *sizeByNote;
 
     void addStateListeners(AudioProcessorValueTreeState::Listener * listener, const StringArray& parameters) {
@@ -132,7 +138,7 @@ public:
 
         // ideally we wouldn't have to cast at all, but the AudioProcessorValueStateTree stores everything as a
         // RangedAudioParameter* so we cast here to fail fast rather than crash in the change handler
-        particleGeneration = dynamic_cast<AudioParameterChoice*>(state.getParameter(Params::ORIGIN));
+        particleOrigin = dynamic_cast<AudioParameterChoice*>(state.getParameter(Params::ORIGIN));
         sizeByNote = dynamic_cast<AudioParameterBool*>(state.getParameter(Params::SIZE_BY_NOTE));
     }
 
@@ -140,27 +146,14 @@ public:
 
     AudioProcessorValueTreeState & parameterState() override { return state; }
 
-    static ParticleGeneration choiceNameToOrigin(const String& choiceName) {
-        if (choiceName == Params::Origin::TOP_LEFT) {
-            return TOP_LEFT;
-        } else if (choiceName == Params::Origin::RANDOM_INSIDE) {
-            return RANDOM_INSIDE;
-        } else if (choiceName == Params::Origin::RANDOM_OUTSIDE) {
-            return RANDOM_OUTSIDE;
-        } else if (choiceName == Params::Origin::TOP_RANDOM) {
-            return TOP_RANDOM;
-        }
-        return TOP_LEFT;
-    }
-
     void parameterChanged (const String& parameterID, float newValue) override {
         if (parameterID == Params::MULTIPLIER) {
             sim.setParticleMultiplier(static_cast<int>(newValue));
         } else if (parameterID == Params::GRAVITY) {
             sim.setGravity(newValue);
         } else if (parameterID == Params::ORIGIN) {
-            auto choice = particleGeneration->getCurrentChoiceName();
-            sim.setGenerationRule(choiceNameToOrigin(choice));
+            auto choice = particleOrigin->getCurrentChoiceName();
+            sim.setParticleOrigin(originMapping[choice]);
         } else if (parameterID == Params::SIZE_BY_NOTE) {
             sim.setSizeByNote(sizeByNote->get());
         } else if (parameterID == Params::SCALE) {

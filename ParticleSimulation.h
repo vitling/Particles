@@ -2,28 +2,12 @@
 // Created by David Whiting on 2020-12-11.
 //
 
-#ifndef PARTICLES_PLUGIN_SIMULATION_H
-#define PARTICLES_PLUGIN_SIMULATION_H
+#ifndef PARTICLES_PLUGIN_PARTICLESIMULATION_H
+#define PARTICLES_PLUGIN_PARTICLESIMULATION_H
 #include <JuceHeader.h>
 #include "Vec.h"
 
-
-// TODO particle generation by lambdas maybe
-
-constexpr int MAX_PARTICLES = 200;
-
-struct Particle {
-    Vec pos = {0,0};
-    Vec vel = {0,0};
-    double mass = 1.0;
-    double hue = 0.0;
-    double radius = 1.0;
-    float lastCollided = 1000;
-    int note = 32;
-    bool enabled = false;
-};
-
-enum ParticleGeneration {
+enum class ParticleOrigin {
     TOP_LEFT,
     RANDOM_INSIDE,
     RANDOM_OUTSIDE,
@@ -32,6 +16,19 @@ enum ParticleGeneration {
 
 class ParticleSimulation {
 private:
+    struct Particle {
+        Vec pos = {0,0};
+        Vec vel = {0,0};
+        double mass = 1.0;
+        double hue = 0.0;
+        double radius = 1.0;
+        float lastCollided = 1000;
+        int note = 32;
+        bool enabled = false;
+    };
+
+    static constexpr int MAX_PARTICLES = 200;
+
     friend class ParticleSimulationVisualiser;
 
     const float w = 1000;
@@ -43,7 +40,7 @@ private:
 
     int particleGenerationMultiplier = 1;
 
-    ParticleGeneration generationRule = TOP_LEFT;
+    ParticleOrigin particleOrigin = ParticleOrigin::TOP_LEFT;
 
     bool sizeByNote = true;
     float particleScale = 1.0f;
@@ -96,18 +93,19 @@ private:
 
     void setupParticle(Particle &p, int noteNumber, float velocity) {
         setParticleProperties(p, noteNumber);
-        switch (generationRule) {
-            case TOP_LEFT:
+        switch (particleOrigin) {
+            case ParticleOrigin::TOP_LEFT:
                 generateTopLeft(p, velocity);
                 break;
-            case RANDOM_INSIDE:
+            case ParticleOrigin::RANDOM_INSIDE:
                 generateRandomInside(p, velocity);
                 break;
-            case RANDOM_OUTSIDE:
+            case ParticleOrigin::RANDOM_OUTSIDE:
                 generateRandomOutside(p, velocity);
                 break;
-            case TOP_RANDOM:
+            case ParticleOrigin::TOP_RANDOM:
                 generateTopRandom(p, velocity);
+                break;
         }
     }
 
@@ -117,6 +115,11 @@ private:
             setupParticle(particles[freeParticle], noteNumber, velocity);
         }
     }
+
+    static inline float clamp(float value) {
+        return value < 0.0f ? 0.0f : value > 1.0f ? 1.0f : value;
+    }
+
 public:
     explicit ParticleSimulation() {}
 
@@ -124,10 +127,6 @@ public:
         for (auto i = 0; i < particleGenerationMultiplier; i++) {
             createParticle(noteNumber, velocity);
         }
-    }
-
-    void setParticleMultiplier(int newValue) {
-        particleGenerationMultiplier = newValue;
     }
 
     void removeNote(int noteNumber) {
@@ -138,16 +137,16 @@ public:
         }
     }
 
-    static inline float clamp(float value) {
-        return value < 0.0f ? 0.0f : value > 1.0f ? 1.0f : value;
+    void setParticleMultiplier(int newValue) {
+        particleGenerationMultiplier = newValue;
     }
 
     void setGravity(float newGravity) {
         gravity = newGravity;
     }
 
-    void setGenerationRule(ParticleGeneration genRule) {
-        generationRule = genRule;
+    void setParticleOrigin(ParticleOrigin genRule) {
+        particleOrigin = genRule;
     }
 
     void setSizeByNote(bool changeSizeByNote) {
@@ -204,46 +203,5 @@ public:
     }
 };
 
-class ParticleSimulationVisualiser : public Component, private Timer {
-private:
-    const ParticleSimulation &sim;
-    const std::vector<String> noteNames = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};
-public:
-    ParticleSimulationVisualiser(const ParticleSimulation &sim): sim(sim) {
-        startTimerHz(60);
-    }
 
-    void timerCallback() override {
-        repaint();
-    }
-
-    String getNoteName(int note) {
-        int octave = (note / 12) - 1;
-        int positionInOctave = note % 12;
-        String noteName = noteNames[positionInOctave];
-        noteName += octave;
-        return noteName;
-    }
-
-    void paint(Graphics &g) override {
-        g.fillAll(Colours::white.withAlpha(0.5f));
-        g.setFont(g.getCurrentFont().withHeight(8));
-        for (const auto & p : sim.particles) {
-            if (p.enabled) {
-                if (p.lastCollided < 20) {
-                    g.setColour(Colour::fromHSL(p.hue/360.0f, 1.0f, (20.0f - p.lastCollided)/20.0f, 1.0f));
-                } else {
-                    g.setColour(Colours::black.withAlpha(0.5f));
-                }
-                float x = p.pos.x * (getWidth()/1000.0);
-                float y = p.pos.y * (getHeight()/1000.0);
-                float rx = p.radius * (getWidth()/1000.0);
-                float ry = p.radius * (getHeight()/1000.0);
-                g.fillEllipse(x-rx, y-ry, rx *2, ry * 2);
-                g.setColour(Colours::white);
-                g.drawText(getNoteName(p.note), x-rx, y-ry, rx*2, ry*2, Justification::centred, false);
-            }
-        }
-    }
-};
-#endif //PARTICLES_PLUGIN_SIMULATION_H
+#endif //PARTICLES_PLUGIN_PARTICLESIMULATION_H
