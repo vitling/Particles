@@ -29,6 +29,7 @@ void operator -= (Vec& a, const Vec &b) {
     a.y -= b.y;
 }
 
+// Dot product
 double operator % (const Vec& a, const Vec &b) {
     return a.x * b.x + a.y * b.y;
 }
@@ -37,8 +38,8 @@ Vec operator * (double s, const Vec &v) {
     return {s * v.x, s * v.y};
 }
 
-double abs(const Vec &v) {
-    return sqrt(v.x * v.x + v.y * v.y);
+float abs(const Vec &v) {
+    return float(sqrt(v.x * v.x + v.y * v.y));
 }
 
 Vec normalise (const Vec &v) {

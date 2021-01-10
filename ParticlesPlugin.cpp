@@ -8,8 +8,8 @@
 
 class ParticlesPluginEditor;
 
-inline auto param(const String& pid, float minValue, float maxValue, float def) {
-    return std::make_unique<AudioParameterFloat>(pid, pid, minValue, maxValue, def);
+inline auto numParam(const String& pid, const NormalisableRange<float>& range, float def) {
+    return std::make_unique<AudioParameterFloat>(pid, pid, range, def);
 }
 
 inline auto selectionParam(const String& pid, const StringArray& choices) {
@@ -24,35 +24,46 @@ class ParticlesAudioProcessor : public AudioProcessor, public AudioProcessorValu
 private:
     friend class ParticlesPluginEditor;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ParticlesAudioProcessor)
-    ParticleSynth poly;
+
+    const int samplesPerSimulationStep = 64;
+
+    ParticleSynth synth;
     ParticleSimulation sim;
-    int stepCounter = 0;
-    int samplesPerStep = 64;
-    float noteLength = 0.1f;
+
+    // Keep track of samples so we know when to step the simulation
+    int sampleStepCounter = 0;
+
+    // Duration in seconds between note on and note off. This is useful primarily when taking the midi side output and
+    // using with another synth
+    const float noteLength = 0.1f;
+
+    // Used to cycle channels for the same note, meaning that multiple copies of the same note can play at a time
     std::map<int, int> lastChannelForNote;
 
+    // When the note off for a note is past the current chunk of samples, we must store it in a buffer to use next time
     MidiBuffer overflowBuffer;
 
     AudioProcessorValueTreeState state {
         *this,
         nullptr,
         "ParticleSim", {
-            param("particle_multiplier", 1.0f, 20.0f, 5.0f),
-            param("gravity", 0.0f, 2.0f, 0.0f),
-            param("attack_time", 0.001f, 0.1f, 0.01f),
-            param("decay_half_life", 0.001f, 0.5f, 0.05f),
-            param("master_volume", -12.0f, 3.0f, 0.0f),
-            param("waveform", 0.0f, 1.0f, 0.0f),
+            numParam("particle_multiplier", {1.0f, 20.0f, 1.0f}, 5.0f),
+            numParam("gravity", {0.0f, 2.0f}, 0.0f),
+            numParam("attack_time", {0.001f, 0.1f}, 0.01f),
+            numParam("decay_half_life", {0.001f, 0.5f}, 0.05f),
+            numParam("master_volume", {-12.0f, 3.0f}, 0.0f),
+            numParam("waveform", {0.0f, 1.0f}, 0.0f),
             selectionParam("particle_generation", {"top_left", "random_inside", "random_outside", "top_random"}),
-            param("scale", 0.1f, 2.0f,1.0f),
+            numParam("scale", {0.1f, 2.0f},1.0f),
             boolParam("size_by_note", true)
         }
     };
 
+    // Keep well-typed pointers to non-float parameters to avoid messy dynamic_casts in the parameterChanged function
     AudioParameterChoice *particleGeneration;
     AudioParameterBool *sizeByNote;
 
-    /** Shortcut for getting true (non-normalised) values out of a parameter tree */
+    // Shortcut for getting true (non-normalised) float values out of a parameter tree
     float getParameterValue(StringRef parameterName) const {
         auto param = state.getParameter(parameterName);
         return param->convertFrom0to1(param->getValue());
@@ -61,14 +72,19 @@ private:
 public:
     ParticlesAudioProcessor():
         AudioProcessor(BusesProperties().withOutput ("Output", AudioChannelSet::stereo(), true)) {
+
         state.addParameterListener("particle_multiplier", this);
         state.addParameterListener("gravity", this);
-        state.addParameterListener("attack_time", &poly);
-        state.addParameterListener("decay_half_life", &poly);
-        state.addParameterListener("waveform", &poly);
         state.addParameterListener("particle_generation", this);
         state.addParameterListener("size_by_note", this);
         state.addParameterListener("scale", this);
+
+        state.addParameterListener("attack_time", &synth);
+        state.addParameterListener("decay_half_life", &synth);
+        state.addParameterListener("waveform", &synth);
+
+        // ideally we wouldn't have to cast at all, but the AudioProcessorValueStateTree stores everything as a
+        // RangedAudioParameter* so we cast here to fail fast rather than crash in the change handler
         particleGeneration = dynamic_cast<AudioParameterChoice*>(state.getParameter("particle_generation"));
         sizeByNote = dynamic_cast<AudioParameterBool*>(state.getParameter("size_by_note"));
     }
@@ -94,7 +110,7 @@ public:
     }
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override {
-        poly.setCurrentPlaybackSampleRate(sampleRate);
+        synth.setCurrentPlaybackSampleRate(sampleRate);
     }
     void releaseResources() override {}
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override {return (layouts.getMainOutputChannels() == 2);}
@@ -102,15 +118,16 @@ public:
     void processBlock (AudioBuffer<float>& audio, MidiBuffer& midiInput) override {
         int maximumMidiFutureInSamples = 40000;
 
-        MidiBuffer midiOutput;
+        MidiBuffer simulationMidiEvents;
 
-        midiOutput.addEvents(overflowBuffer, 0, maximumMidiFutureInSamples, 0);
+        simulationMidiEvents.addEvents(overflowBuffer, 0, maximumMidiFutureInSamples, 0);
         overflowBuffer.clear();
 
         auto nextMidiEvent = midiInput.findNextSamplePosition(0);
-        int noteLengthSamples = noteLength * getSampleRate();
+        int noteLengthSamples = int(noteLength * getSampleRate());
 
         for (auto i = 0; i < audio.getNumSamples(); i++) {
+            // Process midi input to add/remove particles from the simulation
             while (nextMidiEvent != midiInput.end() && (*nextMidiEvent).samplePosition <= i) {
                 const auto &event = (*nextMidiEvent);
                 if (event.getMessage().isNoteOn()) {
@@ -120,32 +137,45 @@ public:
                 }
                 nextMidiEvent++;
             }
-            if (stepCounter++ >= samplesPerStep) {
+
+            // Step simulation when appropriate to produce midi data to feed to the synthesiser
+            if (sampleStepCounter++ >= samplesPerSimulationStep) {
+
+                // The simuation is coded with an assumption of 256 samples per step, so if we configure a different
+                // precision here we need to apply a scaling factor
+                float simulationTimeScale = float(samplesPerSimulationStep) / 256.0f;
+
                 sim.step([&] (int midiNote, float velocity, float pan) {
 
+                    // Cycle round all 16 channels, allowing up to 16 copies of the same note playing simultanously
                     lastChannelForNote[midiNote] = (lastChannelForNote[midiNote] + 1) % 16;
 
+                    // MidiMessage understanding of 'channel' is 1-based, not 0-based
                     int ch = lastChannelForNote[midiNote] + 1;
 
-                    midiOutput.addEvent(MidiMessage::controllerEvent(ch,10, static_cast<int>((pan + 1.0f)*64.0f)), i);
-                    midiOutput.addEvent(MidiMessage::noteOn(ch, midiNote,velocity), i);
-                    midiOutput.addEvent(MidiMessage::noteOff(ch, midiNote), i + noteLengthSamples);
-                }, samplesPerStep/256.0f);
-                stepCounter = 0;
+                    simulationMidiEvents.addEvent(MidiMessage::controllerEvent(ch, 10, static_cast<int>((pan + 1.0f)*64.0f)), i);
+                    simulationMidiEvents.addEvent(MidiMessage::noteOn(ch, midiNote,velocity), i);
+                    simulationMidiEvents.addEvent(MidiMessage::noteOff(ch, midiNote), i + noteLengthSamples);
+                }, simulationTimeScale);
+                sampleStepCounter = 0;
             }
         }
         audio.clear();
 
-        MidiBuffer blockOut;
-        blockOut.addEvents(midiOutput, 0, audio.getNumSamples(), 0);
-        overflowBuffer.addEvents(midiOutput, audio.getNumSamples(), maximumMidiFutureInSamples, -audio.getNumSamples());
+        MidiBuffer midiEventsForCurrentSampleRange;
+        midiEventsForCurrentSampleRange.addEvents(simulationMidiEvents, 0, audio.getNumSamples(), 0);
 
-        poly.renderNextBlock(audio, blockOut, 0,audio.getNumSamples());
+        // Anything past the current sample range gets put into the overflow buffer for the next cycle
+        overflowBuffer.addEvents(simulationMidiEvents, audio.getNumSamples(), maximumMidiFutureInSamples, -audio.getNumSamples());
+
+        synth.renderNextBlock(audio, midiEventsForCurrentSampleRange, 0,audio.getNumSamples());
 
         audio.applyGain(pow(10, getParameterValue("master_volume")/10));
 
+        // If we want to allow midi "sidechain" output (the only way to support plugin midi effects in some hosts) then
+        // we need to leave some midi data in the buffer that we were given at the start
         midiInput.clear();
-        midiInput.addEvents(blockOut, 0, audio.getNumSamples(), 0);
+        midiInput.addEvents(midiEventsForCurrentSampleRange, 0, audio.getNumSamples(), 0);
     }
 
     AudioProcessorEditor* createEditor() override;
@@ -211,7 +241,6 @@ public:
         setSize(800,600);
         vis.setBounds(200,0,600,600);
         addAndMakeVisible(vis);
-
     }
 
     void generateUI(AudioProcessorValueTreeState& state, const std::initializer_list<String> parameters) {

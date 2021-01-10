@@ -8,7 +8,6 @@
 #include "Vec.h"
 
 
-// TODO configurable fixed mass/radius
 // TODO particle generation by lambdas maybe
 
 constexpr int MAX_PARTICLES = 200;
@@ -35,8 +34,8 @@ class ParticleSimulation {
 private:
     friend class ParticleSimulationVisualiser;
 
-    const int w = 1000;
-    const int h = 1000;
+    const float w = 1000;
+    const float h = 1000;
     Particle particles[MAX_PARTICLES];
     Random rnd;
 
@@ -51,7 +50,7 @@ private:
 
     int findFreeParticle() {
         for (auto i = 0; i < MAX_PARTICLES; i++) {
-            if (particles[i].enabled == false) return i;
+            if (!particles[i].enabled) return i;
         }
         return -1;
     }
@@ -132,14 +131,14 @@ public:
     }
 
     void removeNote(int noteNumber) {
-        for (auto i = 0; i < MAX_PARTICLES; i++) {
-            if (particles[i].enabled && particles[i].note == noteNumber) {
-                particles[i].enabled = false;
+        for (auto & particle : particles) {
+            if (particle.enabled && particle.note == noteNumber) {
+                particle.enabled = false;
             }
         }
     }
 
-    inline float clamp(float value) {
+    static inline float clamp(float value) {
         return value < 0.0f ? 0.0f : value > 1.0f ? 1.0f : value;
     }
 
@@ -160,18 +159,16 @@ public:
     }
 
 
-    void step(const std::function<void (int, float, float)> &collisionCallback, float fraction = 1.0f) {
-
-        for (auto i = 0 ; i < MAX_PARTICLES; i++) {
-            Particle &p = particles[i];
+    void step(const std::function<void (int, float, float)> &collisionCallback, float timeScale = 1.0f) {
+        for (auto & p : particles) {
             if (p.enabled) {
-                p.pos += fraction * p.vel;
+                p.pos += timeScale * p.vel;
                 p.vel.y = p.vel.y + 0.05 * gravity;
                 if (p.pos.x < 0) p.vel.x = abs(p.vel.x);
                 if (p.pos.y < 0) p.vel.y = abs(p.vel.y);
                 if (p.pos.x > w) p.vel.x = -abs(p.vel.x);
                 if (p.pos.y > h) p.vel.y = -abs(p.vel.y);
-                p.lastCollided += fraction;
+                p.lastCollided += timeScale;
             }
         }
         for (auto i = 0; i < MAX_PARTICLES; i++) {
