@@ -43,7 +43,7 @@ private:
             param("decay_half_life", 0.001f, 0.5f, 0.05f),
             param("master_volume", -12.0f, 3.0f, 0.0f),
             param("waveform", 0.0f, 1.0f, 0.0f),
-            selectionParam("particle_generation", {"top_left", "random_inside", "random_outside"}),
+            selectionParam("particle_generation", {"top_left", "random_inside", "random_outside", "top_random"}),
             param("scale", 0.1f, 2.0f,1.0f),
             boolParam("size_by_note", true)
         }
@@ -85,6 +85,7 @@ public:
             if (choice == "top_left") sim.setGenerationRule(TOP_LEFT);
             else if (choice == "random_inside") sim.setGenerationRule(RANDOM_INSIDE);
             else if (choice == "random_outside") sim.setGenerationRule(RANDOM_OUTSIDE);
+            else if (choice == "top_random") sim.setGenerationRule(TOP_RANDOM);
         } else if (parameterID == "size_by_note") {
             sim.setSizeByNote(sizeByNote->get());
         } else if (parameterID == "scale") {

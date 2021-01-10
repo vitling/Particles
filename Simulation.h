@@ -27,7 +27,8 @@ struct Particle {
 enum ParticleGeneration {
     TOP_LEFT,
     RANDOM_INSIDE,
-    RANDOM_OUTSIDE
+    RANDOM_OUTSIDE,
+    TOP_RANDOM
 };
 
 class ParticleSimulation {
@@ -80,6 +81,11 @@ private:
         p.vel = 4 * velocity * normalise({rnd.nextFloat() - 0.5f, rnd.nextFloat() - 0.5f});
     }
 
+    void generateTopRandom(Particle &p, float velocity) {
+        p.pos = {rnd.nextFloat() * w, - rnd.nextFloat() * 100};
+        p.vel = 4 * velocity * normalise({rnd.nextFloat() - 0.5f, rnd.nextFloat()});
+    }
+
     void setParticleProperties(Particle &p, int noteNumber) {
         p.note = noteNumber;
         p.mass = sizeByNote ? particleScale * 100000.0 / (110.0 * (pow(2.0, (p.note / 12.0)))) : 300.0f * particleScale;
@@ -101,6 +107,8 @@ private:
             case RANDOM_OUTSIDE:
                 generateRandomOutside(p, velocity);
                 break;
+            case TOP_RANDOM:
+                generateTopRandom(p, velocity);
         }
     }
 
