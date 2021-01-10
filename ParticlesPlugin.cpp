@@ -37,15 +37,18 @@ namespace Params {
 }
 
 
-inline auto numParam(const String& pid, const String& name, const NormalisableRange<float>& range, float def) {
+inline auto param(const String& pid, const String& name, const NormalisableRange<float>& range, float def) {
     return std::make_unique<AudioParameterFloat>(pid, name, range, def);
 }
 
-inline auto selectionParam(const String& pid, const String& name, const StringArray& choices) {
-    return std::make_unique<AudioParameterChoice>(pid, name, choices, 0);
+inline auto param(const String& pid, const String& name, const StringArray& choices, const String& def) {
+    int defaultIndex = choices.indexOf(def);
+    // if you pass an invalid default then just use the first one
+    if (defaultIndex == -1) defaultIndex = 0;
+    return std::make_unique<AudioParameterChoice>(pid, name, choices, defaultIndex);
 }
 
-inline auto boolParam(const String& pid, const String& name, bool def) {
+inline auto param(const String& pid, const String& name, bool def) {
     return std::make_unique<AudioParameterBool>(pid, name, def);
 }
 
@@ -78,15 +81,15 @@ private:
         *this,
         nullptr,
         "ParticleSim", {
-            numParam(Params::MULTIPLIER, "Particle Multiplier", {1.0f, 20.0f, 1.0f}, 5.0f),
-            numParam(Params::GRAVITY, "Gravity", {0.0f, 2.0f, 0.01f}, 0.0f),
-            numParam(Params::ATTACK, "Attack Time(s)", {0.001f, 0.1f, 0.001f}, 0.01f),
-            numParam(Params::DECAY, "Decay half-life(s)", {0.001f, 0.5f, 0.001f}, 0.05f),
-            numParam(Params::MASTER, "Master Volume (dB)", {-12.0f, 3.0f, 0.01f}, 0.0f),
-            numParam(Params::WAVEFORM, "Sin->Saw", {0.0f, 1.0f, 0.01f}, 0.0f),
-            selectionParam(Params::GENERATION, "Particle Origin" , {"top_left", "random_inside", "random_outside", "top_random"}),
-            numParam(Params::SCALE, "Particle Scale Factor", {0.1f, 2.0f, 0.01f}, 1.0f),
-            boolParam(Params::SIZE_BY_NOTE, "Note-dependent size", true)
+            param(Params::MULTIPLIER, "Particle Multiplier", {1.0f, 20.0f, 1.0f}, 5.0f),
+            param(Params::GRAVITY, "Gravity", {0.0f, 2.0f, 0.01f}, 0.0f),
+            param(Params::ATTACK, "Attack Time(s)", {0.001f, 0.1f, 0.001f}, 0.01f),
+            param(Params::DECAY, "Decay half-life(s)", {0.001f, 0.5f, 0.001f}, 0.05f),
+            param(Params::MASTER, "Master Volume (dB)", {-12.0f, 3.0f, 0.01f}, 0.0f),
+            param(Params::WAVEFORM, "Sin->Saw", {0.0f, 1.0f, 0.01f}, 0.0f),
+            param(Params::GENERATION, "Particle Origin" , {"top_left", "random_inside", "random_outside", "top_random"}, "random_inside"),
+            param(Params::SCALE, "Particle Scale Factor", {0.1f, 2.0f, 0.01f}, 1.0f),
+            param(Params::SIZE_BY_NOTE, "Note-dependent size", true)
         }
     };
 
@@ -125,7 +128,7 @@ public:
 
     ~ParticlesAudioProcessor() override = default;
 
-    virtual AudioProcessorValueTreeState & parameterState() { return state; }
+    AudioProcessorValueTreeState & parameterState() override { return state; }
 
     void parameterChanged (const String& parameterID, float newValue) override {
         if (parameterID == Params::MULTIPLIER) {
@@ -242,35 +245,44 @@ public:
         setSize(800,600);
         vis.setBounds(200,0,600,600);
         addAndMakeVisible(vis);
+        setResizable(true, true);
+        setResizeLimits(700, 500, 1400, 1200);
     }
 
     void generateUI(AudioProcessorValueTreeState& state, const StringArray& parameters) {
+        for (auto &param: parameters) {
+            auto control = std::make_unique<ParamControl>(*state.getParameter(param));
+            addAndMakeVisible(control->slider);
+            control->slider.setSliderStyle(Slider::RotaryHorizontalVerticalDrag);
+            control->slider.setTextBoxStyle(Slider::TextBoxBelow, false, 100,20);
+            control->label.setText(state.getParameter(param)->getName(20),NotificationType::dontSendNotification);
+            control->label.setJustificationType(Justification::centred);
+            addAndMakeVisible(control->slider);
+            addAndMakeVisible(control->label);
+            controls.push_back(std::move(control));
+        }
+    }
+
+    void resized() override {
+        auto newBounds = getLocalBounds();
         auto x = 0;
         auto y = 0;
         auto cw = 100;
         auto ch = 100;
-        for (auto &param: parameters) {
-            auto control = std::make_unique<ParamControl>(*state.getParameter(param));
-            addAndMakeVisible(control->slider);
+        for (auto &control: controls) {
             control->slider.setBounds(x,y,cw,ch-20);
-            control->slider.setSliderStyle(Slider::RotaryHorizontalVerticalDrag);
-            control->slider.setTextBoxStyle(Slider::TextBoxBelow, true, 100,20);
-            control->label.setText(state.getParameter(param)->getName(20),NotificationType::dontSendNotification);
-            control->label.setJustificationType(Justification::centred);
             control->label.setBounds(x,y + ch-20,cw,20);
-            addAndMakeVisible(control->slider);
-            addAndMakeVisible(control->label);
-            controls.push_back(std::move(control));
             x+=cw;
             if (x >= 200) {
                 x = 0;
                 y+=ch;
             }
         }
+        vis.setBounds(200,0,newBounds.getWidth()-200, newBounds.getHeight());
     }
 
     void paint(Graphics &g) override {
-        ColourGradient grad(Colour::fromRGB(210,115,20), 0,0, Colour::fromRGB(104,217,240), 0,1000,false);
+        ColourGradient grad(Colour::fromRGB(210,115,20), 0,0, Colour::fromRGB(104,217,240), 0,getHeight(),false);
         grad.addColour(0.5f, Colour::fromRGB(153,70,171));
         g.setGradientFill(grad);
         g.fillAll();
