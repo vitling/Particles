@@ -17,7 +17,7 @@ namespace Params {
     StrConst DECAY = "decay_half_life";
     StrConst MASTER = "master_volume";
     StrConst WAVEFORM = "waveform";
-    StrConst GENERATION = "particle_generation";
+    StrConst ORIGIN = "particle_origin";
     StrConst SCALE = "scale";
     StrConst SIZE_BY_NOTE = "size_by_note";
 
@@ -29,10 +29,20 @@ namespace Params {
             DECAY,
             MASTER,
             WAVEFORM,
-            GENERATION,
+            ORIGIN,
             SCALE,
             SIZE_BY_NOTE
         };
+    }
+
+    namespace Origin {
+        StrConst TOP_LEFT = "Top Left";
+        StrConst RANDOM_INSIDE = "Random Inside";
+        StrConst RANDOM_OUTSIDE = "Random Outside";
+        StrConst TOP_RANDOM = "Top Random";
+        StringArray all() {
+            return {TOP_LEFT, TOP_RANDOM, RANDOM_INSIDE, RANDOM_OUTSIDE};
+        }
     }
 }
 
@@ -87,7 +97,7 @@ private:
             param(Params::DECAY, "Decay half-life(s)", {0.001f, 0.5f, 0.001f}, 0.05f),
             param(Params::MASTER, "Master Volume (dB)", {-12.0f, 3.0f, 0.01f}, 0.0f),
             param(Params::WAVEFORM, "Sin->Saw", {0.0f, 1.0f, 0.01f}, 0.0f),
-            param(Params::GENERATION, "Particle Origin" , {"top_left", "random_inside", "random_outside", "top_random"}, "random_inside"),
+            param(Params::ORIGIN, "Particle Origin" , Params::Origin::all(), Params::Origin::RANDOM_INSIDE),
             param(Params::SCALE, "Particle Scale Factor", {0.1f, 2.0f, 0.01f}, 1.0f),
             param(Params::SIZE_BY_NOTE, "Note-dependent size", true)
         }
@@ -109,7 +119,7 @@ public:
         addStateListeners(this, {
                 Params::MULTIPLIER,
                 Params::GRAVITY,
-                Params::GENERATION,
+                Params::ORIGIN,
                 Params::SIZE_BY_NOTE,
                 Params::SCALE
         });
@@ -122,7 +132,7 @@ public:
 
         // ideally we wouldn't have to cast at all, but the AudioProcessorValueStateTree stores everything as a
         // RangedAudioParameter* so we cast here to fail fast rather than crash in the change handler
-        particleGeneration = dynamic_cast<AudioParameterChoice*>(state.getParameter(Params::GENERATION));
+        particleGeneration = dynamic_cast<AudioParameterChoice*>(state.getParameter(Params::ORIGIN));
         sizeByNote = dynamic_cast<AudioParameterBool*>(state.getParameter(Params::SIZE_BY_NOTE));
     }
 
@@ -130,17 +140,27 @@ public:
 
     AudioProcessorValueTreeState & parameterState() override { return state; }
 
+    static ParticleGeneration choiceNameToOrigin(const String& choiceName) {
+        if (choiceName == Params::Origin::TOP_LEFT) {
+            return TOP_LEFT;
+        } else if (choiceName == Params::Origin::RANDOM_INSIDE) {
+            return RANDOM_INSIDE;
+        } else if (choiceName == Params::Origin::RANDOM_OUTSIDE) {
+            return RANDOM_OUTSIDE;
+        } else if (choiceName == Params::Origin::TOP_RANDOM) {
+            return TOP_RANDOM;
+        }
+        return TOP_LEFT;
+    }
+
     void parameterChanged (const String& parameterID, float newValue) override {
         if (parameterID == Params::MULTIPLIER) {
             sim.setParticleMultiplier(static_cast<int>(newValue));
         } else if (parameterID == Params::GRAVITY) {
             sim.setGravity(newValue);
-        } else if (parameterID == Params::GENERATION) {
+        } else if (parameterID == Params::ORIGIN) {
             auto choice = particleGeneration->getCurrentChoiceName();
-            if (choice == "top_left") sim.setGenerationRule(TOP_LEFT);
-            else if (choice == "random_inside") sim.setGenerationRule(RANDOM_INSIDE);
-            else if (choice == "random_outside") sim.setGenerationRule(RANDOM_OUTSIDE);
-            else if (choice == "top_random") sim.setGenerationRule(TOP_RANDOM);
+            sim.setGenerationRule(choiceNameToOrigin(choice));
         } else if (parameterID == Params::SIZE_BY_NOTE) {
             sim.setSizeByNote(sizeByNote->get());
         } else if (parameterID == Params::SCALE) {
