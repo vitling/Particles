@@ -224,67 +224,91 @@ AudioProcessor* JUCE_CALLTYPE createPluginFilter()
     return new ParticlesAudioProcessor();
 }
 
-class ParamControl {
-public:
-    Slider slider;
-    SliderParameterAttachment attachment;
-    Label label;
-    explicit ParamControl(RangedAudioParameter& param): attachment(param, slider) {}
-};
-
 class ParticlesPluginEditor: public AudioProcessorEditor {
 private:
-    ParticleSimulationVisualiser vis;
-    std::vector<std::unique_ptr<ParamControl>> controls;
+    struct ParameterControl {
+        Slider slider;
+        SliderParameterAttachment attachment;
+        Label label;
+        explicit ParameterControl(RangedAudioParameter& param): attachment(param, slider) {}
+    };
 
+    ParticleSimulationVisualiser simulationVisualiser;
+    std::vector<std::unique_ptr<ParameterControl>> parameterControls;
 public:
     explicit ParticlesPluginEditor(ParticlesAudioProcessor &proc):
     AudioProcessorEditor(proc),
-    vis(proc.sim) {
-        generateUI(proc.state, Params::all());
+    simulationVisualiser(proc.sim) {
+        // Default size on the small side (in case of small screen)
         setSize(800,600);
-        vis.setBounds(200,0,600,600);
-        addAndMakeVisible(vis);
+
+        // Allow user to resize within sensible limits so that we can still show all controls and a reasonable
+        // picture of the simulation
         setResizable(true, true);
         setResizeLimits(700, 500, 1400, 1200);
+
+        // Create default rotary controllers for all parameters exposed in the parameter state
+        createSimpleControls(proc.state, Params::all());
+
+        addAndMakeVisible(simulationVisualiser);
+
+        // Don't wait until resize to set the bounds of subcomponents
+        doLayout();
     }
 
-    void generateUI(AudioProcessorValueTreeState& state, const StringArray& parameters) {
+    virtual ~ParticlesPluginEditor() = default;
+
+    void createSimpleControls(AudioProcessorValueTreeState& state, const StringArray& parameters) {
         for (auto &param: parameters) {
-            auto control = std::make_unique<ParamControl>(*state.getParameter(param));
-            addAndMakeVisible(control->slider);
+            // Each parameter gets a rotary slider and a label, which the editor takes ownership of via a vector of
+            // unique_ptrs so they get cleaned up automatically at destruction
+            auto control = std::make_unique<ParameterControl>(*state.getParameter(param));
+
             control->slider.setSliderStyle(Slider::RotaryHorizontalVerticalDrag);
             control->slider.setTextBoxStyle(Slider::TextBoxBelow, false, 100,20);
+            addAndMakeVisible(control->slider);
+
             control->label.setText(state.getParameter(param)->getName(20),NotificationType::dontSendNotification);
             control->label.setJustificationType(Justification::centred);
-            addAndMakeVisible(control->slider);
             addAndMakeVisible(control->label);
-            controls.push_back(std::move(control));
+
+            parameterControls.push_back(std::move(control));
+
         }
+    }
+
+    void doLayout() {
+        auto newBounds = getLocalBounds();
+
+        // Lay out parameter controls in a grid
+        const auto controlWidth = 100, controlHeight = 100, controlPanelWidth = 200;
+        auto x = 0, y = 0;
+        for (auto &control: parameterControls) {
+            control->slider.setBounds(x,y,controlWidth,controlHeight-20);
+            control->label.setBounds(x,y + controlHeight-20,controlWidth,20);
+            x+=controlWidth;
+            if (x >= controlPanelWidth) {
+                x = 0;
+                y+=controlHeight;
+            }
+        }
+
+        // Use the rest of the available space right of the control panel for the simulation visualiser
+        simulationVisualiser.setBounds(controlPanelWidth,0,newBounds.getWidth()-controlPanelWidth, newBounds.getHeight());
     }
 
     void resized() override {
-        auto newBounds = getLocalBounds();
-        auto x = 0;
-        auto y = 0;
-        auto cw = 100;
-        auto ch = 100;
-        for (auto &control: controls) {
-            control->slider.setBounds(x,y,cw,ch-20);
-            control->label.setBounds(x,y + ch-20,cw,20);
-            x+=cw;
-            if (x >= 200) {
-                x = 0;
-                y+=ch;
-            }
-        }
-        vis.setBounds(200,0,newBounds.getWidth()-200, newBounds.getHeight());
+        doLayout();
+    }
+
+    ColourGradient colourfulBackground() {
+        ColourGradient grad(Colour::fromRGB(210,115,20), 0,0, Colour::fromRGB(104,217,240), 0, float(getHeight()),false);
+        grad.addColour(0.5f, Colour::fromRGB(153,70,171));
+        return grad;
     }
 
     void paint(Graphics &g) override {
-        ColourGradient grad(Colour::fromRGB(210,115,20), 0,0, Colour::fromRGB(104,217,240), 0,getHeight(),false);
-        grad.addColour(0.5f, Colour::fromRGB(153,70,171));
-        g.setGradientFill(grad);
+        g.setGradientFill(colourfulBackground());
         g.fillAll();
     }
 };
