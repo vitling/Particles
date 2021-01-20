@@ -23,14 +23,14 @@ namespace Params {
     StringArray all() {
         return {
             MULTIPLIER,
+            ORIGIN,
             GRAVITY,
+            SCALE,
+            SIZE_BY_NOTE,
+            WAVEFORM,
             ATTACK,
             DECAY,
             MASTER,
-            WAVEFORM,
-            ORIGIN,
-            SCALE,
-            SIZE_BY_NOTE
         };
     }
 
@@ -102,6 +102,7 @@ private:
         }
     };
 
+    // Mapping between text value of origin parameter and ParticleOrigin enum value
     std::map<String, ParticleOrigin> originMapping = {
             {Params::Origin::TOP_RANDOM, ParticleOrigin::TOP_RANDOM},
             {Params::Origin::RANDOM_OUTSIDE, ParticleOrigin::RANDOM_OUTSIDE},
@@ -137,7 +138,7 @@ public:
         });
 
         // ideally we wouldn't have to cast at all, but the AudioProcessorValueStateTree stores everything as a
-        // RangedAudioParameter* so we cast here to fail fast rather than crash in the change handler
+        // RangedAudioParameter* so we cast here to fail fast if we fuck up rather than crash in the change handler
         particleOrigin = dynamic_cast<AudioParameterChoice*>(state.getParameter(Params::ORIGIN));
         sizeByNote = dynamic_cast<AudioParameterBool*>(state.getParameter(Params::SIZE_BY_NOTE));
     }
@@ -178,6 +179,7 @@ public:
         int noteLengthSamples = int(noteLength * getSampleRate());
 
         for (auto i = 0; i < audio.getNumSamples(); i++) {
+
             // Process midi input to add/remove particles from the simulation
             while (nextMidiEvent != midiInput.end() && (*nextMidiEvent).samplePosition <= i) {
                 const auto &event = (*nextMidiEvent);
@@ -229,6 +231,11 @@ public:
         midiInput.addEvents(midiEventsForCurrentSampleRange, 0, audio.getNumSamples(), 0);
     }
 
+    // TODO derive from attack/decay settings
+    double getTailLengthSeconds() const override {
+        return 0.5;
+    }
+
     AudioProcessorEditor* createEditor() override;
 };
 
@@ -250,8 +257,8 @@ private:
     std::vector<std::unique_ptr<ParameterControl>> parameterControls;
 public:
     explicit ParticlesPluginEditor(ParticlesAudioProcessor &proc):
-    AudioProcessorEditor(proc),
-    simulationVisualiser(proc.sim) {
+            AudioProcessorEditor(proc),
+            simulationVisualiser(proc.sim) {
         // Default size on the small side (in case of small screen)
         setSize(800,600);
 
@@ -291,7 +298,7 @@ public:
     }
 
     void doLayout() {
-        auto newBounds = getLocalBounds();
+        auto bounds = getLocalBounds();
 
         // Lay out parameter controls in a grid
         const auto controlWidth = 100, controlHeight = 100, controlPanelWidth = 200;
@@ -307,7 +314,7 @@ public:
         }
 
         // Use the rest of the available space right of the control panel for the simulation visualiser
-        simulationVisualiser.setBounds(controlPanelWidth,0,newBounds.getWidth()-controlPanelWidth, newBounds.getHeight());
+        simulationVisualiser.setBounds(controlPanelWidth,0,bounds.getWidth()-controlPanelWidth, bounds.getHeight());
     }
 
     void resized() override {

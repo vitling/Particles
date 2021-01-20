@@ -10,7 +10,8 @@
 class ParticleSynth : public Synthesiser, public AudioProcessorValueTreeState::Listener {
 private:
     static constexpr float TAU = MathConstants<float>::twoPi;
-    static constexpr int MAX_POLYPHONY = 64;
+    static constexpr int MAX_POLYPHONY = 128;
+
     struct VoiceParams {
         float attackTime = 0.01f;
         float decayHalfLife = 0.05f;
@@ -109,7 +110,7 @@ private:
             auto sampleRate = getSampleRate();
             auto attackIncrement = 1.0f / (sampleRate * voiceParams.attackTime);
             auto decayFactor = pow(0.5f, 1.0f / (sampleRate * voiceParams.decayHalfLife));
-            if (level >= 0.01f) {
+            if (level > 0.00f) {
                 auto l = outputBuffer.getWritePointer(0);
                 auto r = outputBuffer.getWritePointer(1);
                 for (auto i = startSample; i < startSample + numSamples; i++) {
@@ -121,6 +122,9 @@ private:
                     r[i] += rAmp * sample * 0.2f;
                 }
                 if (level < 0.01f) {
+                    level -= 0.001f;
+                }
+                if (level < 0.0f) {
                     level = 0.0f;
                     clearCurrentNote();
                 }

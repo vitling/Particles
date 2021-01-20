@@ -28,13 +28,13 @@ juce_add_plugin(ParticlesPlugin
         COMPANY_NAME Vitling                          # Specify the name of the plugin's author
         IS_SYNTH TRUE                       # Is this a synth or an effect?
         NEEDS_MIDI_INPUT TRUE               # Does the plugin need midi input?
-        NEEDS_MIDI_OUTPUT TRUE              # Does the plugin need midi output?
+        NEEDS_MIDI_OUTPUT FALSE              # Does the plugin need midi output?
         IS_MIDI_EFFECT FALSE                 # Is this plugin a MIDI effect?
         EDITOR_WANTS_KEYBOARD_FOCUS FALSE    # Does the editor need keyboard focus?
         COPY_PLUGIN_AFTER_BUILD TRUE        # Should the plugin be installed to a default location after building?
         PLUGIN_MANUFACTURER_CODE Vitl               # A four-character manufacturer id with at least one upper-case character
         PLUGIN_CODE Part                            # A unique four-character plugin id with at least one upper-case character
-        DESCRIPTION "Boing"
+        DESCRIPTION "Particle Simulation Synthesiser from Vitling"
         VST3_CATEGORIES "Instrument Synth Stereo"
         AU_MAIN_TYPE "kAudioUnitType_MusicDevice"
         FORMATS VST3 AU Standalone                  # The formats to build. Other valid formats are: AAX Unity VST AU AUv3
