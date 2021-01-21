@@ -45,6 +45,11 @@ public:
     void paint(Graphics &g) override {
         g.fillAll(Colours::white.withAlpha(0.5f));
         g.setFont(g.getCurrentFont().withHeight(8));
+
+        // It is unclear from the JUCE documentation whether it's possible this could happen concurrently with an audio
+        // buffer filling operation. If so, the simulation should be locked while it is rendered, but I didn't want to
+        // add it pre-emptively because it could slow things down a little
+
         for (const auto & particle : sim.particles) {
             if (particle.enabled) {
                 if (particle.lastCollided < 20) {

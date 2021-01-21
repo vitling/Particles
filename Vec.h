@@ -19,6 +19,10 @@
 #define PARTICLES_PLUGIN_VEC_H
 #include <cmath>
 
+/** Simple 2d vector representation with various overloaded operations
+ *  I'm sure I could have found something in a library to do this, but it's also a pretty simple subset that I need
+ *  for this plugin, so I wrote it myself to remove the need for additional dependencies
+ */
 struct Vec {
     double x;
     double y;
@@ -42,7 +46,7 @@ void operator -= (Vec& a, const Vec &b) {
     a.y -= b.y;
 }
 
-// Dot product
+/** Dot product */
 double operator % (const Vec& a, const Vec &b) {
     return a.x * b.x + a.y * b.y;
 }
@@ -59,7 +63,6 @@ Vec normalise (const Vec &v) {
     auto mag = abs(v);
     return {mag == 0.0 ? 0.0 : v.x / mag, mag == 0.0 ? 0.0 : v.y / mag};
 }
-
 
 double dist(const Vec& a, const Vec& b) {
     return abs(a - b);

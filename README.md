@@ -17,7 +17,7 @@ If you want to get an idea of the potential, then you can check out my previous 
 
 ### macOS
 
-I have now finally joined the Apple Developer Program, so I am pleased to be able to soon offer installers for Mac.
+I have now finally joined the Apple Developer Program, so I am pleased to be able to soon offer installers for Mac (awaiting just a little more bureacracy)
 
 However, the Apple Developer Program still costs money, even for an open source developer. I suggest you write to Apple and lawmakers in your jurisdiction and complain about their anti-competitive practices.
 

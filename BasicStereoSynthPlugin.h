@@ -20,6 +20,7 @@
 
 #include <JuceHeader.h>
 
+// Base class for a stereo synth plugin, extracting all the non-Particles specific code to make it easier to work with
 class BasicStereoSynthPlugin : public AudioProcessor {
 private:
     String name;
@@ -30,8 +31,8 @@ protected:
         return param->convertFrom0to1(param->getValue());
     }
 public:
-    BasicStereoSynthPlugin(const char *name): name(name), AudioProcessor(BusesProperties().withOutput ("Output", AudioChannelSet::stereo(), true)) {}
-    virtual ~BasicStereoSynthPlugin() = default;
+    explicit BasicStereoSynthPlugin(const char *name): name(name), AudioProcessor(BusesProperties().withOutput ("Output", AudioChannelSet::stereo(), true)) {}
+    ~BasicStereoSynthPlugin() override = default;
 
     // Various metadata about the plugin
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override {return (layouts.getMainOutputChannels() == 2);}
@@ -43,12 +44,15 @@ public:
     double getTailLengthSeconds() const override {
         return 0.0;
     }
+
+    // This plugin doesn't use program/preset functionality, so these are defaulted out
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 1; }
     void setCurrentProgram (int index) override {}
     const String getProgramName (int index) override { return "Default Program"; }
     void changeProgramName (int index, const String& newName) override { }
 
+    /** Override this to return a reference to your plugin's parameter state, which will facilitate saving and loading of state */
     virtual AudioProcessorValueTreeState & parameterState() = 0;
 
     void getStateInformation (MemoryBlock& destData) override {

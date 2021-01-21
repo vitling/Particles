@@ -20,6 +20,9 @@
 #include <JuceHeader.h>
 #include "Vec.h"
 
+// I'm aware that the way I do this is sort of a manual implementation of polymorphism; but given this is a simple
+// function substitution in a CPU-heavy simulation, I decided to keep it as a simple enum switch instead of what would
+// resolve to a virtual function table lookup
 enum class ParticleOrigin {
     TOP_LEFT,
     RANDOM_INSIDE,
@@ -46,6 +49,8 @@ private:
 
     const float w = 1000;
     const float h = 1000;
+
+    // We do not "add" or "remove" particles, but keep them all initialized and flag them as 'enabled' or not
     Particle particles[MAX_PARTICLES];
     Random rnd;
 
@@ -58,6 +63,7 @@ private:
     bool sizeByNote = true;
     float particleScale = 1.0f;
 
+    // Find the first particle in the array with 'enabled' set to false
     int findFreeParticle() {
         for (auto i = 0; i < MAX_PARTICLES; i++) {
             if (!particles[i].enabled) return i;
@@ -171,6 +177,7 @@ public:
     }
 
 
+    // Step the simulation. The callback takes a midi note, a clamped velocity and a pan value
     void step(const std::function<void (int, float, float)> &collisionCallback, float timeScale = 1.0f) {
         for (auto & p : particles) {
             if (p.enabled) {
