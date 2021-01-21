@@ -2,6 +2,9 @@
 
 Particles is an experimental audio synthesis plugin which creates notes by simulating particle collision, available as a VST/AU effect for use inside DAWs like Ableton, Logic, FL Studio etc.
 
+
+![Screenshot](https://github.com/DavW/Particles/blob/main/screenshot.png?raw=true)
+
 It takes MIDI input (eg. from a music keyboard), and uses it to generate particles in the simulation corresponding to the notes which are being played, with a velocity set by the velocity of the incoming MIDI note.
 
 The simulation uses perfectly elastic Newtonian collision mechanics, and each particle will "ring" whenever it hits another, at a volume dependent on the force of the collision, and panned to where it happened in the simulation space.
