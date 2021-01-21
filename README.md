@@ -3,7 +3,7 @@
 Particles is an experimental audio synthesis plugin which creates notes by simulating particle collision, available as a VST/AU effect for use inside DAWs like Ableton, Logic, FL Studio etc.
 
 
-![Screenshot](https://github.com/DavW/Particles/blob/main/screenshot.png?raw=true)
+![Screenshot](https://github.com/vitling/Particles/blob/main/screenshot.png?raw=true)
 
 It takes MIDI input (eg. from a music keyboard), and uses it to generate particles in the simulation corresponding to the notes which are being played, with a velocity set by the velocity of the incoming MIDI note.
 
@@ -17,7 +17,7 @@ If you want to get an idea of the potential, then you can check out my previous 
 
 ### macOS
 
-I have now finally joined the Apple Developer Program, so I am pleased to be able to offer installers for Mac.
+I have now finally joined the Apple Developer Program, so I am pleased to be able to soon offer installers for Mac.
 
 However, the Apple Developer Program still costs money, even for an open source developer. I suggest you write to Apple and lawmakers in your jurisdiction and complain about their anti-competitive practices.
 
