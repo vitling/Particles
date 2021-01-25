@@ -56,9 +56,9 @@ private:
 
     float gravity = 0.0f;
 
-    int particleGenerationMultiplier = 1;
+    int particleGenerationMultiplier = 5;
 
-    ParticleOrigin particleOrigin = ParticleOrigin::TOP_LEFT;
+    ParticleOrigin particleOrigin = ParticleOrigin::RANDOM_INSIDE;
 
     bool sizeByNote = true;
     float particleScale = 1.0f;

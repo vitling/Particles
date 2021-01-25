@@ -25,7 +25,6 @@ project(PARTICLES_PLUGIN VERSION 0.1.0)
 add_subdirectory(JUCE)
 
 juce_add_plugin(ParticlesPlugin
-        VERSION 0.1.0                               # Set this if the plugin version is different to the project version
         ICON_BIG ${CMAKE_CURRENT_SOURCE_DIR}/icon_1024.png                              # ICON_* arguments specify a path to an image file to use as an icon for the Standalone
         ICON_SMALL ${CMAKE_CURRENT_SOURCE_DIR}/icon_128.png
         COMPANY_NAME Vitling                          # Specify the name of the plugin's author
@@ -43,7 +42,6 @@ juce_add_plugin(ParticlesPlugin
         FORMATS VST3 AU Standalone                  # The formats to build. Other valid formats are: AAX Unity VST AU AUv3
         BUNDLE_ID "xyz.vitling.plugins.particles"
         HARDENED_RUNTIME_ENABLED TRUE
-
         PRODUCT_NAME "Particles")        # The name of the final executable, which can differ from the target name
 
 
@@ -58,12 +56,8 @@ target_compile_definitions(ParticlesPlugin
         JUCE_USE_CURL=0
         JUCE_VST3_CAN_REPLACE_VST2=0)
 
-# juce_add_binary_data(ParticlesPluginData SOURCES ui.png)
 
 
 target_link_libraries(ParticlesPlugin PRIVATE
-#        ParticlesPluginData
-        juce::juce_audio_utils
-        juce::juce_dsp)
-
-#set_target_properties(ParticlesPlugin PROPERTIES)
+                    juce::juce_audio_utils
+                    juce::juce_dsp)

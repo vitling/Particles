@@ -242,6 +242,7 @@ public:
 
         // If we want to allow midi "sidechain" output (the only way to support plugin midi effects in some hosts) then
         // we need to leave some midi data in the buffer that we were given at the start
+        // Note: this is currently disabled by the way the plugin is built. This may be desirable in future versions
         midiInput.clear();
         midiInput.addEvents(midiEventsForCurrentSampleRange, 0, audio.getNumSamples(), 0);
     }
@@ -270,6 +271,8 @@ private:
 
     ParticleSimulationVisualiser simulationVisualiser;
     std::vector<std::unique_ptr<ParameterControl>> parameterControls;
+
+    HyperlinkButton vitlingButton;
 public:
     explicit ParticlesPluginEditor(ParticlesAudioProcessor &proc):
             AudioProcessorEditor(proc),
@@ -280,10 +283,16 @@ public:
         // Allow user to resize within sensible limits so that we can still show all controls and a reasonable
         // picture of the simulation
         setResizable(true, true);
-        setResizeLimits(700, 500, 1400, 1200);
+        setResizeLimits(760, 560, 1400, 1200);
 
         // Create default rotary controllers for all parameters exposed in the parameter state
         createSimpleControls(proc.state, Params::all());
+
+        vitlingButton.setURL(URL("https://www.vitling.xyz"));
+        vitlingButton.setButtonText("Plugin by Vitling");
+        vitlingButton.setColour(HyperlinkButton::ColourIds::textColourId, Colours::white);
+
+        addAndMakeVisible(vitlingButton);
 
         addAndMakeVisible(simulationVisualiser);
 
@@ -317,16 +326,25 @@ public:
 
         // Lay out parameter controls in a grid
         const auto controlWidth = 100, controlHeight = 100, controlPanelWidth = 200;
-        auto x = 0, y = 0;
+        //auto x = 0, y = 0;
+
+        auto pNum = 0;
+
         for (auto &control: parameterControls) {
+
+            // Hack to get sim/sound parameters separated visually
+            if (pNum == 5) pNum++;
+
+            int x = (pNum % 2) * controlWidth;
+            int y = (pNum / 2) * controlHeight + 20 + (pNum >5 ? 20: 0);
+
             control->slider.setBounds(x,y,controlWidth,controlHeight-20);
             control->label.setBounds(x,y + controlHeight-20,controlWidth,20);
-            x+=controlWidth;
-            if (x >= controlPanelWidth) {
-                x = 0;
-                y+=controlHeight;
-            }
+            
+            pNum++;
         }
+
+        vitlingButton.setBounds(0,540,200,20);
 
         // Use the rest of the available space right of the control panel for the simulation visualiser
         simulationVisualiser.setBounds(controlPanelWidth,0,bounds.getWidth()-controlPanelWidth, bounds.getHeight());
@@ -345,6 +363,12 @@ public:
     void paint(Graphics &g) override {
         g.setGradientFill(colourfulBackground());
         g.fillAll();
+        g.setColour(Colours::white);
+        g.drawText("Simulation", 0,0,200,20,Justification::centred, false);
+        g.drawText("Synthesiser", 0,320,200,20,Justification::centred, false);
+        g.drawLine(0,20,200,20);
+        g.drawLine(0,320,200,320);
+        g.drawLine(0,340,200,340);
     }
 };
 
