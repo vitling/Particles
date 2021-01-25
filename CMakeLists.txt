@@ -18,9 +18,9 @@ cmake_minimum_required(VERSION 3.15)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_OSX_DEPLOYMENT_TARGET 10.12)
+set(CMAKE_OSX_DEPLOYMENT_TARGET 10.12 CACHE STRING "Minimum OS X deployment version" FORCE)
 
-project(PARTICLES_PLUGIN VERSION 0.3.0)
+project(PARTICLES_PLUGIN VERSION 0.1.0)
 
 add_subdirectory(JUCE)
 
@@ -41,6 +41,9 @@ juce_add_plugin(ParticlesPlugin
         VST3_CATEGORIES "Instrument Synth Stereo"
         AU_MAIN_TYPE "kAudioUnitType_MusicDevice"
         FORMATS VST3 AU Standalone                  # The formats to build. Other valid formats are: AAX Unity VST AU AUv3
+        BUNDLE_ID "xyz.vitling.plugins.particles"
+        HARDENED_RUNTIME_ENABLED TRUE
+
         PRODUCT_NAME "Particles")        # The name of the final executable, which can differ from the target name
 
 
@@ -62,3 +65,5 @@ target_link_libraries(ParticlesPlugin PRIVATE
 #        ParticlesPluginData
         juce::juce_audio_utils
         juce::juce_dsp)
+
+#set_target_properties(ParticlesPlugin PROPERTIES)
