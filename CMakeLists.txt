@@ -26,8 +26,8 @@ add_subdirectory(JUCE)
 
 juce_add_plugin(ParticlesPlugin
         VERSION 0.1.0                               # Set this if the plugin version is different to the project version
-        #ICON_BIG icon.png                              # ICON_* arguments specify a path to an image file to use as an icon for the Standalone
-        #ICON_SMALL icon.png
+        ICON_BIG ${CMAKE_CURRENT_SOURCE_DIR}/icon_1024.png                              # ICON_* arguments specify a path to an image file to use as an icon for the Standalone
+        ICON_SMALL ${CMAKE_CURRENT_SOURCE_DIR}/icon_128.png
         COMPANY_NAME Vitling                          # Specify the name of the plugin's author
         IS_SYNTH TRUE                       # Is this a synth or an effect?
         NEEDS_MIDI_INPUT TRUE               # Does the plugin need midi input?
