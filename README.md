@@ -15,18 +15,31 @@ If you want to get an idea of the potential, then you can check out my previous 
 
 ## Installation
 
-### macOS
+### Mac & Windows
 
-I have now finally joined the Apple Developer Program, so I am pleased to be able to soon offer installers for Mac (awaiting just a little more bureacracy)
+Go to the [Vitling.xyz plugin download page](https://www.vitling.xyz/plugins) for conveniently packaged donwloads for **Mac** and **Windows**
+
+#### Extra notes for Mac users
+
+I have now finally joined the Apple Developer Program, so I am pleased to be able to offer proper installers and notarized binaries for Mac
 
 However, the Apple Developer Program still costs money, even for an open source developer. I suggest you write to Apple and lawmakers in your jurisdiction and complain about their anti-competitive practices.
 
-If you can, please consider [donating some money](https://paypal.me/vitling) to me to offset the cost I have incurred to make this possible. 
+If you use the Mac version, please consider [donating some money](https://paypal.me/vitling) to me to offset the cost I have incurred to make this possible.
+
+### Linux
+
+Building on Linux should be a fairly straightforward `cmake` situation, but I don't use Linux for music making so I'm interested in hearing reports from users of Bitwig or other Linux DAWs.
+
+#### Dependencies
+```cmake g++ libfreetype6-dev libx11-dev libxinerama-dev libxrandr-dev libxcursor-dev mesa-common-dev libasound2-dev freeglut3-dev libxcomposite-dev pkg-config```
+
+These are Debian/Ubuntu package names (install with `sudo apt-get install ` and paste the above), you may need to translate for your distro
 
 ## Support
 
 If you find this useful, then please consider supporting my work. You can do that by buying the music of [Bow Church](https://bowchurch.bandcamp.com)
-or [Vitling](https://vitling.bandcamp.com); or listen and add to playlists on Spotify and/or SoundCloud.
+or [Vitling](https://vitling.bandcamp.com); or listen and add to playlists on [Spotify](https://open.spotify.com/artist/411BFEtPxIZ7sT8f1LqNio?si=-wEbeNCjTgGnu68zi835BA) and/or [SoundCloud](https://soundcloud.com/vitling). 
 
 You can also see my [website](https://www.vitling.xyz), [Instagram](https://instagram.com/vvitling) or [Twitter](https://twitter.com/vvitling) to follow
 my latest work; and/or contact me to hire me for stuff.
