@@ -276,7 +276,8 @@ private:
 public:
     explicit ParticlesPluginEditor(ParticlesAudioProcessor &proc):
             AudioProcessorEditor(proc),
-            simulationVisualiser(proc.sim) {
+            simulationVisualiser(proc.sim),
+            vitlingButton("Plugin by Vitling", URL("https://www.vitling.xyz")) {
         // Default size on the small side (in case of small screen)
         setSize(800,600);
 
@@ -288,8 +289,6 @@ public:
         // Create default rotary controllers for all parameters exposed in the parameter state
         createSimpleControls(proc.state, Params::all());
 
-        vitlingButton.setURL(URL("https://www.vitling.xyz"));
-        vitlingButton.setButtonText("Plugin by Vitling");
         vitlingButton.setColour(HyperlinkButton::ColourIds::textColourId, Colours::white);
 
         addAndMakeVisible(vitlingButton);

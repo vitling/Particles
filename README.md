@@ -36,6 +36,15 @@ Building on Linux should be a fairly straightforward `cmake` situation, but I do
 
 These are Debian/Ubuntu package names (install with `sudo apt-get install ` and paste the above), you may need to translate for your distro
 
+#### Build
+
+```bash
+git clone --recursive --shallow-submodules https://github.com/vitling/particles.git
+cd particles
+cmake -Bbuild -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+```
+
 ## Support
 
 If you find this useful, then please consider supporting my work. You can do that by buying the music of [Bow Church](https://bowchurch.bandcamp.com)

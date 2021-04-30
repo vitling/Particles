@@ -54,9 +54,8 @@ target_compile_definitions(ParticlesPlugin
         PUBLIC
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
-        JUCE_VST3_CAN_REPLACE_VST2=0)
-
-
+        JUCE_VST3_CAN_REPLACE_VST2=0
+        JUCE_DISPLAY_SPLASH_SCREEN=0) # Splash screen not required because plugin is GPL3 licensed
 
 target_link_libraries(ParticlesPlugin PRIVATE
                     juce::juce_audio_utils
